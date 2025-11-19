@@ -53,3 +53,5 @@ logs/
 
 # Docker
 .dockerignore
+backend/datasets/airline/DelayedFlights.csv
+backend/datasets/london/london_crime_by_lsoa.csv
