@@ -1,7 +1,3 @@
-"""Moved: train_car_price_simple.py (archived stub)"""
-from pathlib import Path
-_SRC = Path(__file__).parent.parent / 'train_car_price_simple.py'
-print(f"This file is an archived copy of {_SRC}")
 import pandas as pd
 from pathlib import Path
 from sklearn.ensemble import RandomForestRegressor
@@ -11,8 +7,8 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 import joblib
 
-DATA = Path(__file__).parent.parent.parent / 'datasets' / 'car data.txt'
-OUT = Path(__file__).parent.parent.parent / 'models' / 'car_price.joblib'
+DATA = Path(__file__).parent.parent / 'datasets' / 'car data.txt'
+OUT = Path(__file__).parent.parent / 'models' / 'car_price.joblib'
 
 def main():
     if not DATA.exists():

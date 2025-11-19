@@ -1,7 +1,3 @@
-"""Moved: train_car_model.py (archived stub)"""
-from pathlib import Path
-_SRC = Path(__file__).parent.parent / 'train_car_model.py'
-print(f"This file is an archived copy of {_SRC}")
 """Train a Car price prediction model.
 
 Uses car features to predict selling price.
@@ -14,8 +10,8 @@ from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.preprocessing import LabelEncoder
 import joblib
 
-DATA = Path(__file__).parent.parent.parent / 'datasets' / 'car data.txt'
-MODEL_OUT = Path(__file__).parent.parent.parent / 'models' / 'car_model.joblib'
+DATA = Path(__file__).parent.parent / 'datasets' / 'car data.txt'
+MODEL_OUT = Path(__file__).parent.parent / 'models' / 'car_model.joblib'
 
 def main():
     if not DATA.exists():
