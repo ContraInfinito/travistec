@@ -9,4 +9,4 @@ echo API Docs: http://localhost:8000/docs
 echo.
 
 cd backend
-C:\Users\34654\AppData\Local\Microsoft\WindowsApps\python3.11.exe app.py
+python app.py

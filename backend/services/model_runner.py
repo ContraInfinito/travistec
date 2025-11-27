@@ -5,12 +5,25 @@ import numpy as np
 import traceback
 import random
 from typing import List, Dict, Any, Optional
+try:
+    import tensorflow as tf
+    from tensorflow.keras.models import load_model
+    from tensorflow.keras.preprocessing import image
+    from tensorflow.keras.applications.resnet50 import preprocess_input
+except ImportError:
+    print("TensorFlow not installed or failed to import.")
+    tf = None
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 # Compatibility aliases: map legacy model names to current saved artifacts
 ALIASES = {
     'car_model': 'car_price',
 }
+
+# Hardcoded classes for dog model
+DOG_CLASSES = ['french_bulldog', 'german_shepherd',
+               'golden_retriever', 'poodle', 'yorkshire_terrier']
+
 
 class ModelRunner:
     """
@@ -28,7 +41,8 @@ class ModelRunner:
 
     def _load_all_models(self):
         if not os.path.isdir(self.model_dir):
-            print(f"[ModelRunner] directorio de modelos no encontrado: {self.model_dir}")
+            print(
+                f"[ModelRunner] directorio de modelos no encontrado: {self.model_dir}")
             return
         for f in os.listdir(self.model_dir):
             if f.endswith(".joblib"):
@@ -39,6 +53,21 @@ class ModelRunner:
                     print(f"[ModelRunner] cargado modelo: {name}")
                 except Exception as e:
                     print(f"[ModelRunner] ERROR cargando {f}: {e}")
+                    print(f"[ModelRunner] ERROR cargando {f}: {e}")
+                    traceback.print_exc()
+            elif f.endswith(".h5") or f.endswith(".keras"):
+                if tf is None:
+                    print(
+                        f"[ModelRunner] Saltando {f} porque TensorFlow no está disponible.")
+                    continue
+                name = f.replace(".h5", "").replace(".keras", "")
+                path = os.path.join(self.model_dir, f)
+                try:
+                    self.models[name] = load_model(path)
+                    print(f"[ModelRunner] cargado modelo Keras: {name}")
+                except Exception as e:
+                    print(
+                        f"[ModelRunner] ERROR cargando modelo Keras {f}: {e}")
                     traceback.print_exc()
 
     def get_available_models(self) -> List[str]:
@@ -81,11 +110,13 @@ class ModelRunner:
                 year = float(params.get("year", 2015))
                 km = float(params.get("km", 50000))
                 # Estimamos el precio presente basado en el año (autos más nuevos valen más)
-                present_price = max(1.0, 10.0 - (2025 - year) * 0.5)  # Depreciación aproximada
+                # Depreciación aproximada
+                present_price = max(1.0, 10.0 - (2025 - year) * 0.5)
                 fuel_type = 0  # 0=Petrol, 1=Diesel, 2=CNG
                 seller_type = 0  # 0=Dealer, 1=Individual
                 transmission = 0  # 0=Manual, 1=Automatic
-                owner = min(3, int((2025 - year) / 5))  # Estimamos dueños previos basado en edad del carro
+                # Estimamos dueños previos basado en edad del carro
+                owner = min(3, int((2025 - year) / 5))
                 return [year, present_price, km, fuel_type, seller_type, transmission, owner]
             if m == "bmi_model":
                 # espera {'height': 1.78, 'weight': 78, 'age': 30}
@@ -94,8 +125,10 @@ class ModelRunner:
                 # Bitcoin - Predicción a CORTO PLAZO (días, no años)
                 # Features: price_lag_1, price_lag_2, price_lag_3, price_lag_7, rolling_mean_7, rolling_mean_30
                 # Accept either 'days' or 'years' in params. Convert years -> days.
-                years_val = params.get('years') if params and 'years' in params else None
-                days_val = params.get('days') if params and 'days' in params else None
+                years_val = params.get(
+                    'years') if params and 'years' in params else None
+                days_val = params.get(
+                    'days') if params and 'days' in params else None
                 if years_val is not None:
                     try:
                         horizon_days = int(float(years_val) * 365)
@@ -103,14 +136,18 @@ class ModelRunner:
                         horizon_days = int(float(years_val))
                 else:
                     try:
-                        horizon_days = int(float(days_val)) if days_val is not None else 1
+                        horizon_days = int(
+                            float(days_val)) if days_val is not None else 1
                     except Exception:
                         horizon_days = 1
 
                 # Precio base más realista
-                random.seed(int(max(1, horizon_days) * 137))  # Seed único por día
-                base_price = 45000.0 + (horizon_days * random.uniform(50, 150))  # Variación diaria ~$50-150
-                volatility = random.uniform(0.97, 1.03)  # ±3% volatilidad diaria
+                # Seed único por día
+                random.seed(int(max(1, horizon_days) * 137))
+                # Variación diaria ~$50-150
+                base_price = 45000.0 + (horizon_days * random.uniform(50, 150))
+                volatility = random.uniform(
+                    0.97, 1.03)  # ±3% volatilidad diaria
                 # Return 7 features matching training: 6 price-derived features + horizon_days
                 return [
                     base_price * volatility,
@@ -125,8 +162,10 @@ class ModelRunner:
                 # SP500 - Predicción a CORTO PLAZO (días)
                 # Features: open, high, low, volume, price_change, high_low_diff, close_lag_1, close_lag_5, close_lag_10, rolling_mean_5, rolling_mean_20
                 # Accept 'days' or 'years' and convert to days
-                years_val = params.get('years') if params and 'years' in params else None
-                days_val = params.get('days') if params and 'days' in params else None
+                years_val = params.get(
+                    'years') if params and 'years' in params else None
+                days_val = params.get(
+                    'days') if params and 'days' in params else None
                 if years_val is not None:
                     try:
                         horizon_days = int(float(years_val) * 365)
@@ -134,12 +173,15 @@ class ModelRunner:
                         horizon_days = int(float(years_val))
                 else:
                     try:
-                        horizon_days = int(float(days_val)) if days_val is not None else 1
+                        horizon_days = int(
+                            float(days_val)) if days_val is not None else 1
                     except Exception:
                         horizon_days = 1
 
-                random.seed(int(max(1, horizon_days) * 271))  # Seed único por día
-                base = 4500.0 + (horizon_days * random.uniform(5, 20))  # Variación diaria ~$5-20
+                # Seed único por día
+                random.seed(int(max(1, horizon_days) * 271))
+                # Variación diaria ~$5-20
+                base = 4500.0 + (horizon_days * random.uniform(5, 20))
                 vol_factor = random.uniform(0.98, 1.02)  # ±2% volatilidad
                 # Return 12 features: the 11 price/volume features plus horizon_days
                 return [
@@ -176,14 +218,17 @@ class ModelRunner:
                         except Exception:
                             months_val = None
                 try:
-                    horizon_months = int(float(months_val)) if months_val is not None else 1
+                    horizon_months = int(
+                        float(months_val)) if months_val is not None else 1
                 except Exception:
                     horizon_months = 1
 
-                random.seed(int(max(1, horizon_months) * 181))  # Seed único por mes
+                # Seed único por mes
+                random.seed(int(max(1, horizon_months) * 181))
                 year_value = 2025  # Año actual
                 # Small variations by months
-                vol_factor = 1.0 + (horizon_months * 0.01 * random.uniform(0.95, 1.05))
+                vol_factor = 1.0 + (horizon_months * 0.01 *
+                                    random.uniform(0.95, 1.05))
                 # Build realistic-looking features matching trainer feature_cols:
                 # ['avg_price','total_volume','v_4046','v_4225','v_4770','total_bags','small_bags','large_bags','xlarge_bags','lag_1','lag_3','rolling_3','horizon_months']
                 avg_price = 1.5 * vol_factor
@@ -198,7 +243,8 @@ class ModelRunner:
                 # lag features derived from avg_price
                 lag_1 = avg_price * 0.99
                 lag_3 = avg_price * 0.97
-                rolling_3 = (avg_price * 0.99 + avg_price * 0.98 + avg_price * 1.0) / 3.0
+                rolling_3 = (avg_price * 0.99 + avg_price *
+                             0.98 + avg_price * 1.0) / 3.0
                 return [
                     avg_price,
                     total_volume,
@@ -220,13 +266,13 @@ class ModelRunner:
                 day_idx = 4
                 if isinstance(dow, str):
                     mapping = {
-                        "monday":0,"mon":0,"lunes":0,
-                        "tuesday":1,"tue":1,"martes":1,
-                        "wednesday":2,"wed":2,"miercoles":2,"miércoles":2,
-                        "thursday":3,"thu":3,"jueves":3,
-                        "friday":4,"fri":4,"viernes":4,
-                        "saturday":5,"sat":5,"sabado":5,"sábado":5,
-                        "sunday":6,"sun":6,"domingo":6
+                        "monday": 0, "mon": 0, "lunes": 0,
+                        "tuesday": 1, "tue": 1, "martes": 1,
+                        "wednesday": 2, "wed": 2, "miercoles": 2, "miércoles": 2,
+                        "thursday": 3, "thu": 3, "jueves": 3,
+                        "friday": 4, "fri": 4, "viernes": 4,
+                        "saturday": 5, "sat": 5, "sabado": 5, "sábado": 5,
+                        "sunday": 6, "sun": 6, "domingo": 6
                     }
                     key = dow.strip().lower()
                     day_idx = mapping.get(key, 4)
@@ -238,7 +284,8 @@ class ModelRunner:
 
                 month = int(params.get('month', 10))
                 # borough parameter - accept 'borough' or 'borough_le'
-                borough = params.get('borough', params.get('borough_le', params.get('borough_name', None)))
+                borough = params.get('borough', params.get(
+                    'borough_le', params.get('borough_name', None)))
                 borough_le = 0
                 try:
                     pkg = self.models.get('london_crime_model')
@@ -246,7 +293,8 @@ class ModelRunner:
                         enc = pkg['encoder']
                         # encoder expected to be a LabelEncoder-like object
                         if borough is None:
-                            borough_le = int(enc.transform([enc.classes_[0]])[0]) if hasattr(enc, 'classes_') else 0
+                            borough_le = int(enc.transform([enc.classes_[0]])[
+                                             0]) if hasattr(enc, 'classes_') else 0
                         else:
                             borough_le = int(enc.transform([str(borough)])[0])
                     else:
@@ -262,13 +310,13 @@ class ModelRunner:
                 day_idx = 4  # Default viernes
                 if isinstance(dow, str):
                     mapping = {
-                        "monday":0,"mon":0,"lunes":0,
-                        "tuesday":1,"tue":1,"martes":1,
-                        "wednesday":2,"wed":2,"miercoles":2,"miércoles":2,
-                        "thursday":3,"thu":3,"jueves":3,
-                        "friday":4,"fri":4,"viernes":4,
-                        "saturday":5,"sat":5,"sabado":5,"sábado":5,
-                        "sunday":6,"sun":6,"domingo":6
+                        "monday": 0, "mon": 0, "lunes": 0,
+                        "tuesday": 1, "tue": 1, "martes": 1,
+                        "wednesday": 2, "wed": 2, "miercoles": 2, "miércoles": 2,
+                        "thursday": 3, "thu": 3, "jueves": 3,
+                        "friday": 4, "fri": 4, "viernes": 4,
+                        "saturday": 5, "sat": 5, "sabado": 5, "sábado": 5,
+                        "sunday": 6, "sun": 6, "domingo": 6
                     }
                     key = dow.strip().lower()
                     day_idx = mapping.get(key, 4)
@@ -281,10 +329,12 @@ class ModelRunner:
                         day_idx = int(dow)
 
                 month = int(params.get('month', 10))
-                community_area = int(params.get('community_area', params.get('district', -1) or -1))
+                community_area = int(params.get(
+                    'community_area', params.get('district', -1) or -1))
                 # Check if a pre-trained chicago model exists and what feature count it expects
                 try:
-                    loaded = self.models.get('chicago_crime') or self.models.get('chicago_crime_model')
+                    loaded = self.models.get('chicago_crime') or self.models.get(
+                        'chicago_crime_model')
                     model_obj = None
                     if isinstance(loaded, dict) and 'model' in loaded:
                         model_obj = loaded['model']
@@ -303,11 +353,16 @@ class ModelRunner:
                 # Aproximadamente 7-10 features según el modelo entrenado
                 month = float(params.get("month", 6))  # Mes (1-12)
                 day = float(params.get("day", 15))  # Día del mes (1-31)
-                distance = float(params.get("distance", 500))  # Distancia en millas
-                day_of_week = float(params.get("day_of_week", 3))  # Día de la semana (1-7)
-                dep_time = float(params.get("dep_time", 1400))  # Hora de salida (formato 24h como 1400 = 2pm)
-                crs_dep_time = float(params.get("crs_dep_time", 1400))  # Hora programada salida
-                crs_arr_time = float(params.get("crs_arr_time", 1700))  # Hora programada llegada
+                distance = float(params.get("distance", 500)
+                                 )  # Distancia en millas
+                # Día de la semana (1-7)
+                day_of_week = float(params.get("day_of_week", 3))
+                # Hora de salida (formato 24h como 1400 = 2pm)
+                dep_time = float(params.get("dep_time", 1400))
+                # Hora programada salida
+                crs_dep_time = float(params.get("crs_dep_time", 1400))
+                # Hora programada llegada
+                crs_arr_time = float(params.get("crs_arr_time", 1700))
                 carrier = 0  # Código de aerolínea (0-N)
                 origin = 0  # Código origen (0-N)
                 dest = 0  # Código destino (0-N)
@@ -317,17 +372,27 @@ class ModelRunner:
                 # cols_num (N_Days, Age, Bilirubin, Cholesterol, Albumin, Copper, Alk_Phos, SGOT, Tryglicerides, Platelets, Prothrombin)
                 # + bools (Ascites_bin, Hepatomegaly_bin, Spiders_bin, Edema_bin)
                 # + Sex_le, Drug_le  => total 17 features
-                n_days = float(params.get("n_days", params.get('N_Days', 1000)))  # Días desde diagnóstico
-                age = float(params.get("age", params.get('Age', 18250)))  # Age en días fallback
-                bilirubin = float(params.get("bilirubin", params.get('Bilirubin', 1.5)))
-                cholesterol = float(params.get("cholesterol", params.get('Cholesterol', 280)))
-                albumin = float(params.get("albumin", params.get('Albumin', 3.5)))
+                # Días desde diagnóstico
+                n_days = float(params.get(
+                    "n_days", params.get('N_Days', 1000)))
+                # Age en días fallback
+                age = float(params.get("age", params.get('Age', 18250)))
+                bilirubin = float(params.get(
+                    "bilirubin", params.get('Bilirubin', 1.5)))
+                cholesterol = float(params.get(
+                    "cholesterol", params.get('Cholesterol', 280)))
+                albumin = float(params.get(
+                    "albumin", params.get('Albumin', 3.5)))
                 copper = float(params.get("copper", params.get('Copper', 70)))
-                alk_phos = float(params.get("alk_phos", params.get('Alk_Phos', 1200)))
+                alk_phos = float(params.get(
+                    "alk_phos", params.get('Alk_Phos', 1200)))
                 sgot = float(params.get("sgot", params.get('SGOT', 100)))
-                tryglicerides = float(params.get("tryglicerides", params.get('Tryglicerides', 100)))
-                platelets = float(params.get("platelets", params.get('Platelets', 250)))
-                prothrombin = float(params.get("prothrombin", params.get('Prothrombin', 11)))
+                tryglicerides = float(params.get(
+                    "tryglicerides", params.get('Tryglicerides', 100)))
+                platelets = float(params.get(
+                    "platelets", params.get('Platelets', 250)))
+                prothrombin = float(params.get(
+                    "prothrombin", params.get('Prothrombin', 11)))
 
                 # Boolean flags: accept 'Y'/'N', True/False, 1/0, or numeric
                 def _to_bin(v):
@@ -336,13 +401,16 @@ class ModelRunner:
                     if isinstance(v, (int, float)):
                         return 1 if float(v) != 0 else 0
                     s = str(v).strip().upper()
-                    if s in ('Y','YES','1','TRUE'):
+                    if s in ('Y', 'YES', '1', 'TRUE'):
                         return 1
                     return 0
 
-                ascites = _to_bin(params.get('Ascites', params.get('ascites', 0)))
-                hepatomegaly = _to_bin(params.get('Hepatomegaly', params.get('hepatomegaly', 0)))
-                spiders = _to_bin(params.get('Spiders', params.get('spiders', 0)))
+                ascites = _to_bin(params.get(
+                    'Ascites', params.get('ascites', 0)))
+                hepatomegaly = _to_bin(params.get(
+                    'Hepatomegaly', params.get('hepatomegaly', 0)))
+                spiders = _to_bin(params.get(
+                    'Spiders', params.get('spiders', 0)))
                 # Edema in dataset had values like '0','S','Y' - map similarly
                 edema = _to_bin(params.get('Edema', params.get('edema', 0)))
 
@@ -354,18 +422,22 @@ class ModelRunner:
                 # try to use encoders stored with model package
                 try:
                     pkg = self.models.get(model_name)
-                    encs = pkg.get('encoders', {}) if isinstance(pkg, dict) else {}
+                    encs = pkg.get('encoders', {}) if isinstance(
+                        pkg, dict) else {}
                     if 'sex' in encs:
                         sex_le = int(encs['sex'].transform([str(sex_val)])[0])
                     else:
-                        sex_le = 1 if str(sex_val).strip().upper() in ('M','MALE') else 0
+                        sex_le = 1 if str(sex_val).strip(
+                        ).upper() in ('M', 'MALE') else 0
                     if 'drug' in encs:
-                        drug_le = int(encs['drug'].transform([str(drug_val)])[0])
+                        drug_le = int(
+                            encs['drug'].transform([str(drug_val)])[0])
                     else:
                         drug_le = 0
                 except Exception:
                     # graceful fallback
-                    sex_le = 1 if str(sex_val).strip().upper() in ('M','MALE') else 0
+                    sex_le = 1 if str(sex_val).strip(
+                    ).upper() in ('M', 'MALE') else 0
                     drug_le = 0
 
                 return [n_days, age, bilirubin, cholesterol, albumin, copper, alk_phos, sgot,
@@ -377,8 +449,55 @@ class ModelRunner:
                 # aquí no convertimos a features, se manejará aparte.
                 return None
         except Exception as e:
-            raise ValueError(f"Error al convertir params para {model_name}: {e}")
+            raise ValueError(
+                f"Error al convertir params para {model_name}: {e}")
+        except Exception as e:
+            raise ValueError(
+                f"Error al convertir params para {model_name}: {e}")
         return None
+
+    def _predict_image_model(self, model_name: str, model_obj: Any, image_path: str) -> Dict[str, Any]:
+        """
+        Helper para modelos de imagen (Keras).
+        Asume input shape (224, 224) por defecto para ResNet.
+        """
+        if tf is None:
+            return {"error": "TensorFlow no disponible"}
+
+        try:
+            # Cargar y preprocesar imagen
+            img = image.load_img(image_path, target_size=(224, 224))
+            x = image.img_to_array(img)
+            x = np.expand_dims(x, axis=0)
+            x = preprocess_input(x)
+
+            preds = model_obj.predict(x)
+
+            # Si es el modelo de perros, mapear a clases
+            if "perro" in model_name or "dog" in model_name:
+                # preds es [[p1, p2, p3, p4, p5]]
+                pred_idx = np.argmax(preds, axis=1)[0]
+                confidence = float(preds[0][pred_idx])
+
+                class_name = str(pred_idx)
+                if 0 <= pred_idx < len(DOG_CLASSES):
+                    class_name = DOG_CLASSES[pred_idx]
+
+                return {
+                    "model": model_name,
+                    "prediction": class_name,
+                    "confidence": confidence,
+                    "raw_output": preds.tolist()
+                }
+
+            # Fallback genérico
+            return {
+                "model": model_name,
+                "prediction": preds.tolist()
+            }
+        except Exception as e:
+            traceback.print_exc()
+            return {"error": f"Error en inferencia de imagen: {str(e)}"}
 
     # -------------- predict genérico --------------------
     def predict(self, model_name: str, features: Optional[List[float]] = None, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -395,19 +514,27 @@ class ModelRunner:
                 resolved = ALIASES[model_name]
                 model_name = resolved
             else:
-                raise ValueError(f"Modelo '{model_name}' no cargado. Modelos disponibles: {self.get_available_models()}")
+                raise ValueError(
+                    f"Modelo '{model_name}' no cargado. Modelos disponibles: {self.get_available_models()}")
 
         # Extraer el objeto modelo real (puede estar en dict['model'] o directamente)
         model_obj = self._get_model_object(model_name)
         if model_obj is None:
             raise ValueError(f"No se pudo extraer el modelo de '{model_name}'")
-        
+
+        # Caso especial: Keras model (imagen)
+        # Se detecta si el objeto tiene método 'predict' y es instancia de keras Model (o si tf está cargado y es un modelo)
+        # Para simplificar, si params tiene 'image_path', usamos el helper de imagen
+        if params and 'image_path' in params:
+            return self._predict_image_model(model_name, model_obj, params['image_path'])
+
         # Caso especial: movie recommender
         if model_name == "movie_recommender":
             # The saved recommender is a dict with a DataFrame 'movies'
             loaded = self.models[model_name]
             if isinstance(loaded, dict):
-                top_k = int(params.get("top_k", 1)) if params else 1  # Default 1 movie
+                # Default 1 movie
+                top_k = int(params.get("top_k", 1)) if params else 1
                 year = params.get('year') if params else None
                 genre = params.get('genre') if params else None
 
@@ -428,26 +555,30 @@ class ModelRunner:
                     # filter by genre if provided (case-insensitive substring in genres_str or in genres_list)
                     if genre:
                         g = str(genre).strip().lower()
-                        df = df[df['genres_str'].str.lower().str.contains(g, na=False) | df['genres_list'].apply(lambda gl: any(g == gg.lower() for gg in gl))]
+                        df = df[df['genres_str'].str.lower().str.contains(
+                            g, na=False) | df['genres_list'].apply(lambda gl: any(g == gg.lower() for gg in gl))]
 
                     # If after filtering we have no matches, fallback to the full list
                     if df.shape[0] == 0:
                         df = movies_df
 
                     # Sort by popularity and take top_k
-                    df_sorted = df.sort_values('popularity', ascending=False).head(top_k)
+                    df_sorted = df.sort_values(
+                        'popularity', ascending=False).head(top_k)
                     titles = df_sorted['title'].tolist()
                     return {"model": model_name, "input": params or {}, "prediction": titles}
                 except Exception as e:
                     # fallback: if movies is a list
-                    import random, time
+                    import random
+                    import time
                     random.seed(int(time.time() * 1000))
                     movies_list = loaded.get('movies', [])
                     if isinstance(movies_list, list) and len(movies_list) > 0:
-                        recs = random.sample(movies_list, min(top_k, len(movies_list)))
+                        recs = random.sample(
+                            movies_list, min(top_k, len(movies_list)))
                         return {"model": model_name, "input": params or {}, "prediction": recs}
                     return {"model": model_name, "input": params or {}, "prediction": []}
-        
+
         # si pasaron features explícitos
         if features is not None:
             X = np.array(features).reshape(1, -1)
@@ -456,7 +587,8 @@ class ModelRunner:
                 out = pred.tolist() if hasattr(pred, "tolist") else pred
 
                 # Build a response dict so we can attach model-specific conversions (eg. car price -> rupees/usd)
-                resp = {"model": model_name, "input": features, "prediction": out}
+                resp = {"model": model_name,
+                        "input": features, "prediction": out}
 
                 # si clasificación y existe predict_proba
                 if hasattr(model_obj, "predict_proba"):
@@ -473,7 +605,8 @@ class ModelRunner:
                         else:
                             price_val = float(out)
 
-                        unit_multiplier = float(os.getenv('CAR_PRICE_UNIT_MULTIPLIER', '100000'))
+                        unit_multiplier = float(
+                            os.getenv('CAR_PRICE_UNIT_MULTIPLIER', '100000'))
                         rupees = price_val * unit_multiplier
 
                         usd_rate = os.getenv('CAR_PRICE_TO_USD_RATE', '0.012')
@@ -506,12 +639,14 @@ class ModelRunner:
                     pred = model_obj.predict(X)
                     return {"model": model_name, "input": params, "prediction": (pred.tolist() if hasattr(pred, "tolist") else pred)}
                 except Exception:
-                    raise ValueError(f"No se pudo convertir params a features para {model_name}. Pasa 'features' como lista.")
+                    raise ValueError(
+                        f"No se pudo convertir params a features para {model_name}. Pasa 'features' como lista.")
             # si conversion exitosa, predecir
             return self.predict(model_name, features=converted, params=None)
 
         # si no hay ni features ni params
-        raise ValueError("Debe proveer 'features' (lista) o 'params' (dict) para predecir.")
+        raise ValueError(
+            "Debe proveer 'features' (lista) o 'params' (dict) para predecir.")
 
     # -------------- run_model desde texto ----------------
     def run_model(self, command_text: str) -> Dict[str, Any]:
@@ -534,11 +669,15 @@ class ModelRunner:
                 return self.predict("avocado_model", params={"years": num})
             if "automovil" in text or "automóvil" in text or "car" in text or "auto" in text:
                 # intentar extraer año y km
-                y = re.search(r'año\s*(\d{4})', text) or re.search(r'year\s*(\d{4})', text)
-                km = re.search(r'kilometraje\s*(\d+)', text) or re.search(r'km\s*(\d+)', text)
+                y = re.search(
+                    r'año\s*(\d{4})', text) or re.search(r'year\s*(\d{4})', text)
+                km = re.search(r'kilometraje\s*(\d+)',
+                               text) or re.search(r'km\s*(\d+)', text)
                 params = {}
-                if y: params["year"] = int(y.group(1))
-                if km: params["km"] = int(km.group(1))
+                if y:
+                    params["year"] = int(y.group(1))
+                if km:
+                    params["km"] = int(km.group(1))
                 return self.predict("car_model", params=params if params else {"year": 2015, "km": 50000})
             if "masa corporal" in text or "bmi" in text:
                 # extraer numbers
@@ -551,18 +690,22 @@ class ModelRunner:
                 return {"error": "Proveer altura y peso (ej. 'altura 1.78 peso 78')"}
             if "londres" in text or "london" in text:
                 # intentar día
-                dow = re.search(r'(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)', text)
+                dow = re.search(
+                    r'(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)', text)
                 day = dow.group(1) if dow else "viernes"
-                return self.predict("london_crime_model", params={"day_of_week": day}) 
+                return self.predict("london_crime_model", params={"day_of_week": day})
             if "chicago" in text:
-                dow = re.search(r'(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)', text)
+                dow = re.search(
+                    r'(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)', text)
                 day = dow.group(1) if dow else "viernes"
                 return self.predict("chicago_crime", params={"day_of_week": day})
             if "cirrosis" in text:
-                return self.predict("cirrhosis_model", params={})  # preferir pasar features explícitas
+                # preferir pasar features explícitas
+                return self.predict("cirrhosis_model", params={})
             if "avion" in text or "vuelo" in text or "airline" in text:
                 # buscar lugar y mes
-                month = re.search(r'(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|\d{1,2})', text)
+                month = re.search(
+                    r'(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|\d{1,2})', text)
                 loc = re.search(r'desde\s+([A-Za-zÁÉÍÓÚáéíóúñÑ ]+)', text)
                 params = {}
                 if month:
@@ -572,7 +715,7 @@ class ModelRunner:
                 return self.predict("airline_delay_model", params=params)
             if "pelicula" in text or "recomienda" in text or "movie" in text:
                 # recommender
-                return self.predict("movie_recommender", params={"top_k":5})
+                return self.predict("movie_recommender", params={"top_k": 5})
         except Exception as e:
             return {"error": str(e)}
 
