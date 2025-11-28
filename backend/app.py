@@ -3,11 +3,15 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
-from services.model_runner import ModelRunner
-from services.stt_service import STTService
-# Prefer DeepFace-based detector (multi-class) with fallback
-from services.emotion_deepface import analyze_image_file
-from services.stt_service import STTService
+# Support both "python app.py" (cwd backend) and "python -m uvicorn backend.app:app"
+try:
+    from .services.model_runner import ModelRunner
+    from .services.stt_service import STTService
+    from .services.emotion_deepface import analyze_image_file
+except Exception:
+    from services.model_runner import ModelRunner
+    from services.stt_service import STTService
+    from services.emotion_deepface import analyze_image_file
 import os
 import pandas as pd
 from pathlib import Path
