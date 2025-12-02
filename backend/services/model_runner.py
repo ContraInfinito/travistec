@@ -7,9 +7,10 @@ import random
 from typing import List, Dict, Any, Optional
 try:
     import tensorflow as tf
-    from tensorflow.keras.models import load_model
-    from tensorflow.keras.preprocessing import image
-    from tensorflow.keras.applications.resnet50 import preprocess_input
+    import keras
+    # from tensorflow.keras.models import load_model
+    # from tensorflow.keras.preprocessing import image
+    # from tensorflow.keras.applications.resnet50 import preprocess_input
 except ImportError:
     print("TensorFlow not installed or failed to import.")
     tf = None
@@ -60,10 +61,15 @@ class ModelRunner:
                     print(
                         f"[ModelRunner] Saltando {f} porque TensorFlow no está disponible.")
                     continue
+                
+                # Skip audio_ctc_model as it is handled by STTService with custom objects
+                if "audio_ctc_model" in f:
+                    continue
+
                 name = f.replace(".h5", "").replace(".keras", "")
                 path = os.path.join(self.model_dir, f)
                 try:
-                    self.models[name] = load_model(path)
+                    self.models[name] = keras.models.load_model(path)
                     print(f"[ModelRunner] cargado modelo Keras: {name}")
                 except Exception as e:
                     print(
@@ -466,10 +472,10 @@ class ModelRunner:
 
         try:
             # Cargar y preprocesar imagen
-            img = image.load_img(image_path, target_size=(224, 224))
-            x = image.img_to_array(img)
+            img = keras.preprocessing.image.load_img(image_path, target_size=(224, 224))
+            x = keras.preprocessing.image.img_to_array(img)
             x = np.expand_dims(x, axis=0)
-            x = preprocess_input(x)
+            x = keras.applications.resnet50.preprocess_input(x)
 
             preds = model_obj.predict(x)
 

@@ -28,7 +28,8 @@ function AudioRecorder({ onTranscription, onCommand, isActive }) {
       streamRef.current = stream;
 
       // Intentar usar Web Speech API primero
-      const started = startWebSpeechRecognition();
+      // const started = startWebSpeechRecognition();
+      const started = false; // Force MediaRecorder for custom model
       
       if (started) {
         setUseWebSpeech(true);

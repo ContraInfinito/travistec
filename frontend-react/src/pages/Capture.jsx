@@ -26,6 +26,8 @@ function Capture() {
   // Prompt para completar parámetros faltantes
   const [pendingCommand, setPendingCommand] = useState(null);
   const [promptValues, setPromptValues] = useState({});
+  const [isListeningForCommand, setIsListeningForCommand] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
   const navigate = useNavigate();
 
   // Cargar metadatos al montar
@@ -154,16 +156,78 @@ function Capture() {
   };
 
   const handleTranscription = async (audioOrText) => {
+    // Prevent processing if a form is already open
+    if (pendingCommand) {
+      return;
+    }
+
     try {
-      console.log('📝 handleTranscription llamado con:', audioOrText);
+      let text = "";
       if (typeof audioOrText === 'string') {
-        // Ya es texto del Web Speech API
-        addVoiceLog(`🎤 Transcripción: "${audioOrText}"`, 'info');
+        text = audioOrText;
       } else {
-        // Es un Blob, enviarlo al backend
-        const transcription = await apiClient.transcribeAudio(audioOrText);
-        addVoiceLog(`🎤 Transcripción: "${transcription}"`, 'info');
+        // addVoiceLog("🎤 Procesando audio...", "info"); // Optional: too noisy?
+        const res = await apiClient.transcribeAudio(audioOrText);
+        text = res.transcription || res;
       }
+      
+      if (!text) {
+        console.log("🎤 Audio procesado pero sin texto detectado.");
+        return;
+      }
+      
+      const lower = text.toLowerCase();
+      addVoiceLog(`🎤 Transcripción: "${text}"`, 'info');
+
+      // 1. Global Commands
+      if (lower.includes("exit")) {
+        handleStopAudio();
+        addVoiceLog("🛑 Comando EXIT detectado", "warning");
+        return;
+      }
+      if (lower.includes("reset")) {
+        cancelPrompt();
+        setLastResult(null);
+        addVoiceLog("🔄 Comando RESET detectado", "info");
+        return;
+      }
+
+      // 2. Wake Word - REMOVED (Always listening)
+      /*
+      if (!isListeningForCommand) {
+        if (lower.includes("travistec")) {
+          setIsListeningForCommand(true);
+          addVoiceLog("🤖 ¡Hola! Escuchando comando...", "success");
+        }
+        return;
+      }
+      */
+
+      // 3. Command Parsing (Always active)
+      if (true) {
+        let task = null;
+        
+        if (lower.includes("airline")) task = "airline";
+        else if (lower.includes("avocado") || lower.includes("aguacate")) task = "avocado";
+        else if (lower.includes("london") && lower.includes("crime")) task = "london";
+        else if (lower.includes("chicago") && lower.includes("crime")) task = "chicago";
+        else if (lower.includes("movie") || lower.includes("pelicula")) task = "movie";
+        else if (lower.includes("bitcoin")) task = "bitcoin";
+        else if (lower.includes("car") || lower.includes("coche")) task = "car_price";
+        else if (lower.includes("bmi") || lower.includes("masa")) task = "bmi";
+        else if (lower.includes("sp500")) task = "sp500";
+        else if (lower.includes("cirrhosis")) task = "cirrhosis";
+
+        if (task) {
+          // setIsListeningForCommand(false); // No longer needed
+          addVoiceLog(`✅ Comando detectado: ${task}`, "success");
+          
+          // Trigger the form logic
+          const commandObj = { task, params: { needs: ['all'] } }; 
+          handleCommand(commandObj);
+        }
+      }
+
     } catch (error) {
       console.error('❌ Error transcribiendo:', error);
       addVoiceLog(`❌ Error transcribiendo: ${error.message}`, 'error');
@@ -171,6 +235,12 @@ function Capture() {
   };
 
   const handleCommand = async (command) => {
+    // Prevent overwriting an active form with repeated/noise commands
+    if (pendingCommand) {
+      console.log('⚠️ Ignorando nuevo comando porque hay uno pendiente:', command.task);
+      return;
+    }
+
     try {
       console.log('🎯 handleCommand llamado con:', command);
       addVoiceLog(`🎯 Comando parseado: ${command.task || 'desconocido'}`, 'info');
@@ -202,6 +272,7 @@ function Capture() {
       const response = await apiClient.processCommand(command);
       console.log('✅ Respuesta del servidor:', response);
       addVoiceLog(`✅ ${response}`, 'success');
+      setLastResult(response);
     } catch (error) {
       console.error('❌ Error procesando comando:', error);
       addVoiceLog(`❌ Error: ${error.message}`, 'error');
@@ -230,6 +301,18 @@ function Capture() {
       if (promptValues.month) pc.params.month = parseInt(promptValues.month, 10);
       if (promptValues.date) pc.params.date = parseInt(promptValues.date, 10);
       if (promptValues.day) pc.params.day = promptValues.day;
+    } else if (pc.task === 'avocado' || pc.task === 'bitcoin' || pc.task === 'sp500') {
+      if (promptValues.days) pc.params.days = parseInt(promptValues.days, 10);
+    } else if (pc.task === 'car_price') {
+      if (promptValues.year) pc.params.year = parseInt(promptValues.year, 10);
+      if (promptValues.km) pc.params.km = parseInt(promptValues.km, 10);
+    } else if (pc.task === 'bmi') {
+      if (promptValues.height) pc.params.height = parseFloat(promptValues.height);
+      if (promptValues.weight) pc.params.weight = parseFloat(promptValues.weight);
+      if (promptValues.age) pc.params.age = parseInt(promptValues.age, 10);
+    } else if (pc.task === 'cirrhosis') {
+      if (promptValues.age_years) pc.params.age = parseFloat(promptValues.age_years) * 365;
+      if (promptValues.bilirubin) pc.params.bilirubin = parseFloat(promptValues.bilirubin);
     }
 
     delete pc.params.needs;
@@ -238,6 +321,7 @@ function Capture() {
       addVoiceLog('⏩ Enviando comando con parámetros completados…', 'info');
       const response = await apiClient.processCommand(pc);
       addVoiceLog(`✅ ${response}`, 'success');
+      setLastResult(response);
     } catch (e) {
       addVoiceLog(`❌ Error: ${e.message}`, 'error');
     } finally {
@@ -460,6 +544,56 @@ function Capture() {
                     </div>
                   </div>
                 )}
+                {(pendingCommand.task === 'avocado' || pendingCommand.task === 'bitcoin' || pendingCommand.task === 'sp500') && (
+                  <div className="prompt-form">
+                    <div className="row">
+                      <label>Días a predecir</label>
+                      <input type="number" min="1" max="365" value={promptValues.days || ''} onChange={e => setPromptValues(v => ({...v, days: e.target.value}))} placeholder="Ej. 7" />
+                    </div>
+                  </div>
+                )}
+                {pendingCommand.task === 'car_price' && (
+                  <div className="prompt-form">
+                    <div className="row">
+                      <label>Año</label>
+                      <input type="number" min="1990" max="2025" value={promptValues.year || ''} onChange={e => setPromptValues(v => ({...v, year: e.target.value}))} placeholder="Ej. 2015" />
+                    </div>
+                    <div className="row">
+                      <label>Kilometraje</label>
+                      <input type="number" min="0" value={promptValues.km || ''} onChange={e => setPromptValues(v => ({...v, km: e.target.value}))} placeholder="Ej. 50000" />
+                    </div>
+                  </div>
+                )}
+                {pendingCommand.task === 'bmi' && (
+                  <div className="prompt-form">
+                    <div className="row trio">
+                      <div>
+                        <label>Altura (m)</label>
+                        <input type="number" step="0.01" value={promptValues.height || ''} onChange={e => setPromptValues(v => ({...v, height: e.target.value}))} placeholder="1.75" />
+                      </div>
+                      <div>
+                        <label>Peso (kg)</label>
+                        <input type="number" step="0.1" value={promptValues.weight || ''} onChange={e => setPromptValues(v => ({...v, weight: e.target.value}))} placeholder="70" />
+                      </div>
+                      <div>
+                        <label>Edad</label>
+                        <input type="number" value={promptValues.age || ''} onChange={e => setPromptValues(v => ({...v, age: e.target.value}))} placeholder="30" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {pendingCommand.task === 'cirrhosis' && (
+                  <div className="prompt-form">
+                    <div className="row">
+                      <label>Edad (años)</label>
+                      <input type="number" value={promptValues.age_years || ''} onChange={e => setPromptValues(v => ({...v, age_years: e.target.value}))} placeholder="50" />
+                    </div>
+                    <div className="row">
+                      <label>Bilirrubina</label>
+                      <input type="number" step="0.1" value={promptValues.bilirubin || ''} onChange={e => setPromptValues(v => ({...v, bilirubin: e.target.value}))} placeholder="1.0" />
+                    </div>
+                  </div>
+                )}
                 <div className="prompt-actions">
                   <button className="btn" onClick={confirmPrompt}>Aceptar</button>
                   <button className="btn btn-secondary" onClick={cancelPrompt}>Cancelar</button>
@@ -486,6 +620,16 @@ function Capture() {
               </div>
             </div>
           </div>
+
+          {/* RESULTADO ACTUAL */}
+          {lastResult && (
+            <div className="last-result-section" style={{marginBottom: '20px', padding: '15px', background: '#f0f8ff', borderRadius: '8px', border: '1px solid #b0d4ff'}}>
+              <h3 style={{marginTop: 0, color: '#0056b3'}}>🎯 Último Resultado</h3>
+              <div className="result-card">
+                <pre style={{whiteSpace: 'pre-wrap', wordWrap: 'break-word'}}>{JSON.stringify(lastResult, null, 2)}</pre>
+              </div>
+            </div>
+          )}
 
           {/* LOG DE COMANDOS DE VOZ - AL LADO DEL MICRÓFONO */}
           <div className="logs-section-inline voice-logs-inline">

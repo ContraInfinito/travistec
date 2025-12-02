@@ -48,7 +48,7 @@ def run_smoke_for_model(model_name):
     # If the model is a plain dict-like object (simple recommender), treat as ok
     if isinstance(m, dict):
         out['status'] = 'ok'
-        out['model_object'] = m
+        out['model_object_keys'] = list(m.keys())
         return out
 
     # Prefer dataset if mapped

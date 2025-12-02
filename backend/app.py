@@ -8,10 +8,15 @@ try:
     from .services.model_runner import ModelRunner
     from .services.stt_service import STTService
     from .services.emotion_deepface import analyze_image_file
-except Exception:
-    from services.model_runner import ModelRunner
-    from services.stt_service import STTService
-    from services.emotion_deepface import analyze_image_file
+except Exception as e:
+    print(f"[WARNING] Relative import failed: {e}")
+    try:
+        from services.model_runner import ModelRunner
+        from services.stt_service import STTService
+        from services.emotion_deepface import analyze_image_file
+    except Exception as e2:
+        print(f"[ERROR] Absolute import also failed: {e2}")
+        raise e
 import os
 import pandas as pd
 from pathlib import Path
@@ -281,13 +286,14 @@ async def execute_command(payload: dict):
             except Exception as e:
                 response_text = f"💪 Error: {str(e)}"
 
-        elif task == 'car':
+        elif task in ['car', 'car_price', 'car_model']:
             # Predicción precio auto
             try:
                 year = params.get('year', 2015)
                 km = params.get('km', 50000)
+                # Use 'car_price' directly as it matches the joblib filename
                 result = model_runner.predict(
-                    "car_model", params={"year": year, "km": km})
+                    "car_price", params={"year": year, "km": km})
                 # model may return list-like predictions
                 price = result.get('prediction', [0])[0]
                 try:
