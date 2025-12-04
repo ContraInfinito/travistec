@@ -1,0 +1,21 @@
+{
+  "model_name": "gesture_mobilenetv2",
+  "num_classes": 5,
+  "classes": {
+    "left_swipe": 0,
+    "right_swipe": 1,
+    "stop": 2,
+    "thumbs_down": 3,
+    "thumbs_up": 4
+  },
+  "input_shape": [
+    160,
+    160,
+    3
+  ],
+  "metrics": {
+    "val_loss": 0.5998998880386353,
+    "val_accuracy": 0.765333354473114,
+    "top_2_accuracy": 0.9296666383743286
+  }
+}

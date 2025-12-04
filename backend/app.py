@@ -8,12 +8,14 @@ try:
     from .services.model_runner import ModelRunner
     from .services.stt_service import STTService
     from .services.emotion_deepface import analyze_image_file
+    from .services.gesture_classifier import get_gesture_classifier
 except Exception as e:
     print(f"[WARNING] Relative import failed: {e}")
     try:
         from services.model_runner import ModelRunner
         from services.stt_service import STTService
         from services.emotion_deepface import analyze_image_file
+        from services.gesture_classifier import get_gesture_classifier
     except Exception as e2:
         print(f"[ERROR] Absolute import also failed: {e2}")
         raise e
@@ -39,6 +41,7 @@ app.add_middleware(
 # Inicializar servicios
 model_runner = ModelRunner()
 stt_service = STTService()
+gesture_classifier = get_gesture_classifier()
 
 # local emotion detector uses Haar cascades
 
@@ -98,6 +101,36 @@ async def face_sentiment(image: UploadFile = File(...)):
         except Exception:
             pass
         return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/classify/gesture")
+async def classify_gesture(image: UploadFile = File(...)):
+    """
+    Classify hand gesture in uploaded image using transfer learning models.
+    
+    Returns:
+        - gesture: predicted gesture class (left_swipe, right_swipe, stop, thumbs_down, thumbs_up)
+        - confidence: prediction confidence (0-1)
+        - emoji: emoji representation of gesture
+        - display_name: human-readable gesture name
+        - all_predictions: probabilities for all classes
+        - top_3: top 3 predictions with details
+    """
+    try:
+        # Save temporary file
+        tmp_path = _save_upload_to_temp(image)
+        
+        try:
+            # Classify gesture
+            result = gesture_classifier.predict_from_file(tmp_path)
+        finally:
+            # Clean up temporary file
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -1,0 +1,21 @@
+{
+  "model_name": "gesture_resnet50",
+  "num_classes": 5,
+  "classes": {
+    "left_swipe": 0,
+    "right_swipe": 1,
+    "stop": 2,
+    "thumbs_down": 3,
+    "thumbs_up": 4
+  },
+  "input_shape": [
+    160,
+    160,
+    3
+  ],
+  "metrics": {
+    "val_loss": 1.2523653507232666,
+    "val_accuracy": 0.47066667675971985,
+    "top_2_accuracy": 0.7283333539962769
+  }
+}

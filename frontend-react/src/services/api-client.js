@@ -105,6 +105,37 @@ class APIClient {
   }
 
   /**
+   * Clasifica gesto de mano en una imagen
+   * @param {Blob} imageBlob - Imagen con el gesto
+   * @returns {Promise<Object>} - Datos del gesto detectado
+   */
+  async classifyGesture(imageBlob) {
+    const formData = new FormData();
+    formData.append("image", imageBlob, "gesture.jpg");
+
+    try {
+      const response = await this.client.post(
+        "/api/v1/classify/gesture",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error("Error clasificando gesto:", error);
+      // No lanzar error, retornar objeto con error para manejo graceful
+      return {
+        error: 'classification_failed',
+        message: error.response?.data?.detail || 'Modelos de gestos no disponibles'
+      };
+    }
+  }
+
+  /**
    * Procesa un comando de texto con el modelo ML
    * @param {string|Object} command - Comando o payload estructurado
    * @returns {Promise<string>} - Respuesta del modelo

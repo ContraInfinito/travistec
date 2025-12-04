@@ -1,0 +1,5 @@
+left_swipe
+right_swipe
+stop
+thumbs_down
+thumbs_up

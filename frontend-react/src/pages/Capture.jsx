@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import CameraCapture from '../components/CameraCapture';
 import AudioRecorder from '../components/AudioRecorder';
 import EmotionDisplay from '../components/EmotionDisplay';
+import GestureDisplay from '../components/GestureDisplay';
 import { apiClient } from '../services/api-client';
 import './Capture.css';
 
@@ -11,6 +12,7 @@ function Capture() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isAudioActive, setIsAudioActive] = useState(false);
   const [currentEmotions, setCurrentEmotions] = useState(null);
+  const [currentGesture, setCurrentGesture] = useState(null);
   
   // REGISTROS SEPARADOS PARA CADA SISTEMA
   const [faceRecognitionLogs, setFaceRecognitionLogs] = useState([]); // 📸 Logs de reconocimiento facial
@@ -79,16 +81,17 @@ function Capture() {
     setVoiceCommandLogs(prev => [newLog, ...prev].slice(0, 20));
   };
 
-  // Controles para el sistema de CÁMARA (emociones)
+  // Controles para el sistema de CÁMARA (emociones + gestos)
   const handleStartCamera = () => {
     setIsCameraActive(true);
-    addFaceLog('📸 Sistema de reconocimiento facial INICIADO', 'success');
+    addFaceLog('📸 Sistema de reconocimiento facial y gestos INICIADO', 'success');
   };
 
   const handleStopCamera = () => {
     setIsCameraActive(false);
     setCurrentEmotions(null);
-    addFaceLog('📸 Sistema de reconocimiento facial DETENIDO', 'info');
+    setCurrentGesture(null);
+    addFaceLog('📸 Sistema de reconocimiento facial y gestos DETENIDO', 'info');
   };
 
   // Controles para el sistema de AUDIO (comandos de voz)
@@ -113,44 +116,58 @@ function Capture() {
 
   const handleEmotionDetected = async (imageBlob) => {
     try {
-      const faceData = await apiClient.recognizeFace(imageBlob);
+      // Procesar emociones y gestos en paralelo
+      const [faceData, gestureData] = await Promise.all([
+        apiClient.recognizeFace(imageBlob),
+        apiClient.classifyGesture(imageBlob)
+      ]);
       
-      // Nuevo flujo: usar respuesta estilo DeepFace del backend
+      // === PROCESAR EMOCIONES ===
       const details = faceData?.details || [];
       const faceCount = faceData?.face_count ?? details.length;
 
       if (!details.length || faceCount === 0) {
         setCurrentEmotions(null);
         addFaceLog(faceData?.message || 'No se detectó rostro en la imagen', 'warning');
-        return;
+      } else {
+        // Elegir rostro dominante: el que coincide con dominant_emotion o el primero
+        let selected = details.find(d => d.top_emotion === faceData?.dominant_emotion) || details[0];
+        let scores = selected?.scores || faceData?.attributes?.emotion || null;
+
+        if (!scores || typeof scores !== 'object') {
+          addFaceLog('No se pudieron obtener las emociones del rostro', 'warning');
+          setCurrentEmotions(null);
+        } else {
+          // Normalizar a [0,1] si vienen en porcentaje
+          const values = Object.values(scores);
+          const maxVal = Math.max(...values);
+          const normalized = Object.fromEntries(
+            Object.entries(scores).map(([k, v]) => [k, maxVal > 1 ? (Number(v) / 100) : Number(v)])
+          );
+
+          // Ordenar para log: top primero, luego secundarias
+          const ordered = Object.entries(normalized).sort((a, b) => b[1] - a[1]);
+          const top = ordered[0];
+          const secondary = ordered.slice(1).map(([k, v]) => `${k} ${(v * 100).toFixed(1)}%`).join(', ');
+
+          setCurrentEmotions(normalized);
+          addFaceLog(`😊 Emoción: ${top[0]} ${(top[1] * 100).toFixed(1)}% | Otras: ${secondary}`, 'success');
+        }
       }
 
-      // Elegir rostro dominante: el que coincide con dominant_emotion o el primero
-      let selected = details.find(d => d.top_emotion === faceData?.dominant_emotion) || details[0];
-      let scores = selected?.scores || faceData?.attributes?.emotion || null;
-
-      if (!scores || typeof scores !== 'object') {
-        addFaceLog('No se pudieron obtener las emociones del rostro', 'warning');
-        setCurrentEmotions(null);
-        return;
+      // === PROCESAR GESTOS ===
+      if (gestureData?.error) {
+        setCurrentGesture(null);
+        addFaceLog(`⚠️ Gesto: ${gestureData.message || 'No disponible'}`, 'warning');
+      } else {
+        setCurrentGesture(gestureData);
+        const gestureInfo = `${gestureData.emoji} ${gestureData.display_name}`;
+        const conf = (gestureData.confidence * 100).toFixed(1);
+        addFaceLog(`👋 Gesto detectado: ${gestureInfo} (${conf}%)`, 'success');
       }
-
-      // Normalizar a [0,1] si vienen en porcentaje
-      const values = Object.values(scores);
-      const maxVal = Math.max(...values);
-      const normalized = Object.fromEntries(
-        Object.entries(scores).map(([k, v]) => [k, maxVal > 1 ? (Number(v) / 100) : Number(v)])
-      );
-
-      // Ordenar para log: top primero, luego secundarias
-      const ordered = Object.entries(normalized).sort((a, b) => b[1] - a[1]);
-      const top = ordered[0];
-      const secondary = ordered.slice(1).map(([k, v]) => `${k} ${(v * 100).toFixed(1)}%`).join(', ');
-
-      setCurrentEmotions(normalized);
-      addFaceLog(`😊 Emoción principal: ${top[0]} ${(top[1] * 100).toFixed(1)}% | Secundarias: ${secondary}`, 'success');
+      
     } catch (error) {
-      console.error('Error procesando rostro:', error);
+      console.error('Error procesando imagen:', error);
       addFaceLog(`❌ Error: ${error.message}`, 'error');
     }
   };
@@ -406,9 +423,16 @@ function Capture() {
             )}
           </div>
 
-          <div className="emotions-container">
-            <h3>Emociones Detectadas</h3>
-            <EmotionDisplay emotions={currentEmotions} />
+          <div className="analysis-results">
+            <div className="emotions-container">
+              <h3>😊 Emociones Detectadas</h3>
+              <EmotionDisplay emotions={currentEmotions} />
+            </div>
+            
+            <div className="gesture-container">
+              <h3>👋 Gesto Reconocido</h3>
+              <GestureDisplay gesture={currentGesture} />
+            </div>
           </div>
         </div>
 
