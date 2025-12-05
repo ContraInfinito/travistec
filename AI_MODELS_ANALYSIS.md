@@ -59,7 +59,7 @@ The models can recognize 5 hand gestures:
 ```python
 IMG_SIZE = (160, 160)          # Optimized image size
 BATCH_SIZE = 64                # Batch size for training
-EPOCHS = 12                     # Maximum epochs
+EPOCHS = 12                     # Maximum epochs (may stop early via Early Stopping)
 LEARNING_RATE = 0.0001         # Adam optimizer learning rate
 ```
 
@@ -294,5 +294,5 @@ All of these are manually trained ML models for various prediction tasks.
 
 ---
 
-**Report Generated**: 2025-12-05  
-**Analysis Scope**: AI Vision Models (Emotion Recognition & Hand Gesture Recognition)
+**Analysis Scope**: AI Vision Models (Emotion Recognition & Hand Gesture Recognition)  
+**Repository**: jaredjimenez0022-oss/TravisTEC
