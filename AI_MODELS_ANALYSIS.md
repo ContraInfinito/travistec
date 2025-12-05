@@ -46,12 +46,13 @@ The models can recognize 5 hand gestures:
 #### Dataset
 - **Location**: `backend/datasets/dataset_hand_gesture/`
 - **Size**: 
-  - Training images: **19,890 PNG images**
-  - Validation images: **3,000 PNG images**
+  - Training images: **19,890 PNG images** (663 folders, ~30 images per folder)
+  - Validation images: **3,000 PNG images** (100 folders, ~30 images per folder)
   - Total: **22,890 images** across 5 gesture classes
 - **Structure**:
-  - Training set: `train.csv` (multiple folders with PNG images)
-  - Validation set: `val.csv` (separate validation images)
+  - Training set: `train.csv` lists 663 folders, each containing multiple PNG images
+  - Validation set: `val.csv` lists 100 folders, each containing multiple PNG images
+  - Each row in CSV represents a folder with multiple image frames from a video sequence
 - **Format**: CSV with format `folder_name;class_name;class_id`
 
 #### Training Configuration
