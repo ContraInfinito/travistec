@@ -16,12 +16,14 @@ The project includes **manually trained hand gesture recognition models** using 
 #### Architecture
 - **Model 1: ResNet50** - Deep residual network
   - Location: `backend/models/gesture_resnet50.keras`
+  - Model Size: **98 MB**
   - Validation Accuracy: **47.07%**
   - Top-2 Accuracy: **72.83%**
   - Input Size: 160x160x3
   
 - **Model 2: MobileNetV2** - Lightweight efficient network (BEST PERFORMING)
   - Location: `backend/models/gesture_mobilenetv2.keras`
+  - Model Size: **12 MB**
   - Validation Accuracy: **76.53%**
   - Top-2 Accuracy: **92.97%**
   - Input Size: 160x160x3
@@ -43,6 +45,10 @@ The models can recognize 5 hand gestures:
 
 #### Dataset
 - **Location**: `backend/datasets/dataset_hand_gesture/`
+- **Size**: 
+  - Training images: **19,890 PNG images**
+  - Validation images: **3,000 PNG images**
+  - Total: **22,890 images** across 5 gesture classes
 - **Structure**:
   - Training set: `train.csv` (multiple folders with PNG images)
   - Validation set: `val.csv` (separate validation images)
@@ -137,6 +143,7 @@ The emotion recognition system uses **pre-trained models** from external sources
 
 #### Primary Model: FER+ (ONNX)
 - **Location**: `backend/models/emotion-ferplus-8.onnx`
+- **Model Size**: **182 KB**
 - **Source**: ONNX Model Zoo (pre-trained)
 - **Model URL**: https://github.com/onnx/models/raw/main/vision/body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx
 - **Type**: Pre-trained convolutional neural network
