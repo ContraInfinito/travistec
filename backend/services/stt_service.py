@@ -115,12 +115,16 @@ class STTService:
         # List of expected keywords/commands based on the system's domain
         keywords = [
             "travistec", "airline", "avocado", "aguacate", "bitcoin", "bmi", "bodymass", "masa",
-            "cars", "coche", "chicago", "cirrhosis", "london", "londres", "movie", "movies", "pelicula", "cine",
-            "sp500", "acciones", "action", "thriller", "drama", "comedy", "romance", "horror", 
-            "adventure", "crime", "crimen", "fantasy", "mystery", "scifi", "war", "western",
+            "cars", "coche", "carro", "chicago", "cirrhosis", "cirrosis", "london", "londres", 
+            "movie", "movies", "pelicula", "cine", "sp500", "acciones", "action", "thriller", 
+            "drama", "comedy", "romance", "horror", "adventure", "crime", "crimen", "fantasy", 
+            "mystery", "scifi", "war", "western", "avion",
             "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+            "lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo",
             "january", "february", "march", "april", "may", "june", "july", "august", 
             "september", "october", "november", "december",
+            "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+            "septiembre", "octubre", "noviembre", "diciembre",
             "toyota", "honda", "ford", "bmw", "nissan", "audi", "mercedes", "tesla", "chevrolet", "hyundai",
             "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"
         ]
@@ -138,13 +142,16 @@ class STTService:
             "aguacate": "avocado",
             "masa": "bmi",
             "coche": "car_price",
+            "carro": "car_price",
             "autos": "car_price",
-            "coches": "car_price"
+            "coches": "car_price",
+            "avion": "airline",
+            "cirrosis": "cirrhosis"
         }
 
         # Find closest match
-        # cutoff=0.8 reduces false positives significantly (noise -> keyword)
-        matches = difflib.get_close_matches(text.lower(), keywords, n=1, cutoff=0.8)
+        # cutoff=0.75 allows more flexibility for phonetic variants
+        matches = difflib.get_close_matches(text.lower(), keywords, n=1, cutoff=0.75)
         
         if matches:
             matched_word = matches[0]
@@ -160,6 +167,85 @@ class STTService:
         # Strict mode: If no match and not a number, return empty string to suppress gibberish
         # This addresses the user's complaint about "agael", "pomcm" etc.
         return ""
+    
+    def correct_full_transcription(self, full_text):
+        """
+        Applies phonetic correction to the full transcription.
+        Handles multi-word phrases like "agua cate" -> "aguacate" -> "avocado"
+        and "si rrosis" -> "cirrosis" -> "cirrhosis"
+        """
+        import re
+        
+        # First, normalize the text (remove punctuation, lowercase)
+        clean_text = re.sub(r'[^\w\s]', '', full_text).lower().strip()
+        
+        # Phonetic phrase mappings - handle split words and common misrecognitions
+        phrase_patterns = [
+            # Aguacate variations (avocado)
+            (r'\bagua\s*cat[ea]?\b', 'avocado'),
+            (r'\bagua\s*c[aá]tida\b', 'avocado'),
+            (r'\baguacat[ea]?\b', 'avocado'),
+            (r'\babocado\b', 'avocado'),
+            (r'\baguacate\b', 'avocado'),
+            
+            # Cirrosis variations (cirrhosis)
+            (r'\bsi\s*r+os+is\b', 'cirrhosis'),
+            (r'\bsi\s*ros+is\b', 'cirrhosis'),
+            (r'\bsi\s*bruc?ys\b', 'cirrhosis'),
+            (r'\bsi\s*roc?e[s]?\b', 'cirrhosis'),
+            (r'\bse\s*roc?e[s]?\b', 'cirrhosis'),
+            (r'\bcirrosis\b', 'cirrhosis'),
+            (r'\bsirrosis\b', 'cirrhosis'),
+            
+            # Bitcoin variations
+            (r'\bbit\s*co[iy]n?\b', 'bitcoin'),
+            (r'\bbitcine\b', 'bitcoin'),
+            (r'\bbitcoy\b', 'bitcoin'),
+            
+            # Avión -> airline
+            (r'\bavi[oó]n\b', 'airline'),
+            (r'\baerline\b', 'airline'),
+            (r'\bairline\b', 'airline'),
+            
+            # Londres/London
+            (r'\blondres\b', 'london crime'),
+            (r'\blondon\b', 'london crime'),
+            
+            # Chicago
+            (r'\bchicago\b', 'chicago crime'),
+            
+            # Película/Movie
+            (r'\bpel[ií]cula\b', 'movie'),
+            (r'\bmovie\b', 'movie'),
+            (r'\bcine\b', 'movie'),
+            
+            # Carro/Coche -> car_price
+            (r'\bcarro\b', 'car_price'),
+            (r'\bcoche\b', 'car_price'),
+            (r'\bauto\b', 'car_price'),
+            
+            # Masa/BMI
+            (r'\bmasa\s*corporal\b', 'bmi'),
+            (r'\bmasa\b', 'bmi'),
+            (r'\bbmi\b', 'bmi'),
+            
+            # SP500
+            (r'\bsp\s*500\b', 'sp500'),
+            (r'\bacciones\b', 'sp500'),
+            
+            # TravisTEC
+            (r'\btravis\s*tec\b', 'travistec'),
+            (r'\btrabis\s*tec\b', 'travistec'),
+        ]
+        
+        # Try each pattern
+        for pattern, replacement in phrase_patterns:
+            if re.search(pattern, clean_text, re.IGNORECASE):
+                print(f"[INFO] Phrase match: '{clean_text}' matched '{pattern}' -> '{replacement}'")
+                return replacement
+        
+        # If no phrase match, fall back to word-by-word correction
+        return None
 
     async def transcribe(self, audio_path):
         if not self.configured:
@@ -220,7 +306,12 @@ class STTService:
             import re
             clean_text = re.sub(r'[^\w\s]', '', transcription).lower().strip()
             
-            # Apply spell correction/keyword matching
+            # FIRST: Try full phrase matching for multi-word patterns like "agua cate"
+            phrase_result = self.correct_full_transcription(clean_text)
+            if phrase_result:
+                return phrase_result
+            
+            # SECOND: Fall back to word-by-word correction
             words = clean_text.split()
             final_words = []
             for word in words:
