@@ -6,14 +6,18 @@ import uvicorn
 # Support both "python app.py" (cwd backend) and "python -m uvicorn backend.app:app"
 try:
     from .services.model_runner import ModelRunner
-    from .services.stt_service import STTService
+    # from .services.stt_service import STTService  # TEMPORARILY DISABLED - slow transformers import
     from .services.emotion_deepface import analyze_image_file
+    # Use MediaPipe for better gesture recognition
+    from .services.gesture_mediapipe import get_gesture_classifier
 except Exception as e:
     print(f"[WARNING] Relative import failed: {e}")
     try:
         from services.model_runner import ModelRunner
-        from services.stt_service import STTService
+        # from services.stt_service import STTService  # TEMPORARILY DISABLED - slow transformers import
         from services.emotion_deepface import analyze_image_file
+        # Use MediaPipe for better gesture recognition
+        from services.gesture_mediapipe import get_gesture_classifier
     except Exception as e2:
         print(f"[ERROR] Absolute import also failed: {e2}")
         raise e
@@ -38,7 +42,9 @@ app.add_middleware(
 
 # Inicializar servicios
 model_runner = ModelRunner()
-stt_service = STTService()
+# stt_service = STTService()  # TEMPORARILY DISABLED - slow transformers import
+stt_service = None  # Will be loaded on-demand
+gesture_classifier = get_gesture_classifier()
 
 # local emotion detector uses Haar cascades
 
@@ -119,18 +125,29 @@ def _get_gesture_classifier():
 @app.post("/api/v1/classify/gesture")
 async def classify_gesture(image: UploadFile = File(...)):
     """
-    Classify hand gesture in an uploaded image.
-    Returns gesture name, confidence, and emoji.
+    Classify hand gesture using MediaPipe (Professional Google Model).
+    
+    Supports gestures:
+    - thumbs_up 👍
+    - thumbs_down 👎  
+    - open_palm (stop) ✋
+    - victory ✌️
+    - pointing_up ☝️
+    - closed_fist ✊
+    - love_you 🤟
+    
+    Returns:
+        - gesture: predicted gesture class
+        - confidence: prediction confidence (0-1)
+        - emoji: emoji representation
+        - display_name: human-readable name
     """
     try:
-        classifier = _get_gesture_classifier()
-        tmp_path = _save_upload_to_temp(image)
+        # Read image bytes
+        image_bytes = await image.read()
         
-        try:
-            result = classifier.predict_from_file(tmp_path)
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+        # Classify using MediaPipe
+        result = gesture_classifier.classify_from_bytes(image_bytes)
         
         return result
     except Exception as e:

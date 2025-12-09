@@ -58,3 +58,6 @@ backend/datasets/london/london_crime_by_lsoa.csv
 backend/models/audio_ctc_model.zip
 backend/models/whisper-small-es-finetune-final.zip
 backend/models/whisper-small-es-finetune-final/whisper-small-es-finetune-final/model.safetensors
+
+# Dataset pesado de gestos
+backend/data/
