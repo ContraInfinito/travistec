@@ -8,14 +8,16 @@ try:
     from .services.model_runner import ModelRunner
     from .services.stt_service import STTService
     from .services.emotion_deepface import analyze_image_file
-    from .services.gesture_classifier import get_gesture_classifier
+    # Use MediaPipe for better gesture recognition
+    from .services.gesture_mediapipe import get_gesture_classifier
 except Exception as e:
     print(f"[WARNING] Relative import failed: {e}")
     try:
         from services.model_runner import ModelRunner
         from services.stt_service import STTService
         from services.emotion_deepface import analyze_image_file
-        from services.gesture_classifier import get_gesture_classifier
+        # Use MediaPipe for better gesture recognition
+        from services.gesture_mediapipe import get_gesture_classifier
     except Exception as e2:
         print(f"[ERROR] Absolute import also failed: {e2}")
         raise e
@@ -108,27 +110,29 @@ async def face_sentiment(image: UploadFile = File(...)):
 @app.post("/api/v1/classify/gesture")
 async def classify_gesture(image: UploadFile = File(...)):
     """
-    Classify hand gesture in uploaded image using transfer learning models.
+    Classify hand gesture using MediaPipe (Professional Google Model).
+    
+    Supports gestures:
+    - thumbs_up 👍
+    - thumbs_down 👎  
+    - open_palm (stop) ✋
+    - victory ✌️
+    - pointing_up ☝️
+    - closed_fist ✊
+    - love_you 🤟
     
     Returns:
-        - gesture: predicted gesture class (left_swipe, right_swipe, stop, thumbs_down, thumbs_up)
+        - gesture: predicted gesture class
         - confidence: prediction confidence (0-1)
-        - emoji: emoji representation of gesture
-        - display_name: human-readable gesture name
-        - all_predictions: probabilities for all classes
-        - top_3: top 3 predictions with details
+        - emoji: emoji representation
+        - display_name: human-readable name
     """
     try:
-        # Save temporary file
-        tmp_path = _save_upload_to_temp(image)
+        # Read image bytes
+        image_bytes = await image.read()
         
-        try:
-            # Classify gesture
-            result = gesture_classifier.predict_from_file(tmp_path)
-        finally:
-            # Clean up temporary file
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+        # Classify using MediaPipe
+        result = gesture_classifier.classify_from_bytes(image_bytes)
         
         return result
     except Exception as e:
