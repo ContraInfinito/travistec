@@ -55,3 +55,10 @@ logs/
 .dockerignore
 backend/datasets/airline/DelayedFlights.csv
 backend/datasets/london/london_crime_by_lsoa.csv
+
+# Dataset pesado de gestos
+backend/data/
+
+
+
+
