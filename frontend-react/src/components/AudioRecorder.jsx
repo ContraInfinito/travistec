@@ -367,8 +367,8 @@ function AudioRecorder({ onTranscription, onCommand, isActive }) {
         <div className="pulse"></div>
         <span>
           {isRecording 
-            ? `🎤 Grabando ${useWebSpeech ? '(Web Speech)' : '(MediaRecorder)'}`
-            : '🎤 Micrófono inactivo'
+            ? `Grabando ${useWebSpeech ? '(Web Speech)' : '(MediaRecorder)'}`
+            : 'Micrófono inactivo'
           }
         </span>
       </div>

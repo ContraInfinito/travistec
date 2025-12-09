@@ -40,7 +40,7 @@ function Results() {
   return (
     <div className="results-page">
       <div className="results-header">
-        <h1>📊 Resultados de la Sesión</h1>
+        <h1>Resultados de la Sesión</h1>
         <p>Análisis detallado de la captura realizada</p>
       </div>
 
@@ -52,21 +52,21 @@ function Results() {
             <h3>Reconocimiento Facial</h3>
             <div className="stat-details">
               <p className="stat-value">Total: {faceStats.total}</p>
-              <p className="stat-mini success">✅ {faceStats.success}</p>
-              <p className="stat-mini error">❌ {faceStats.error}</p>
+              <p className="stat-mini success">{faceStats.success}</p>
+              <p className="stat-mini error">{faceStats.error}</p>
             </div>
           </div>
         </div>
 
         {/* Estadísticas de Comandos de Voz */}
         <div className="stat-card voice-section">
-          <div className="stat-icon">🎤</div>
+          <div className="stat-icon"></div>
           <div className="stat-content">
             <h3>Comandos de Voz</h3>
             <div className="stat-details">
               <p className="stat-value">Total: {voiceStats.total}</p>
-              <p className="stat-mini success">✅ {voiceStats.success}</p>
-              <p className="stat-mini error">❌ {voiceStats.error}</p>
+              <p className="stat-mini success">{voiceStats.success}</p>
+              <p className="stat-mini error">{voiceStats.error}</p>
             </div>
           </div>
         </div>
@@ -82,7 +82,7 @@ function Results() {
         <div className="logs-container-dual">
           {/* Log de Reconocimiento Facial */}
           <div className="logs-result facial-logs">
-            <h2>📸 Registro de Reconocimiento Facial</h2>
+            <h2>Registro de Reconocimiento Facial</h2>
             <div className="logs-list">
               {faceRecognitionLogs.length === 0 ? (
                 <div className="empty-state">
@@ -102,7 +102,7 @@ function Results() {
 
           {/* Log de Comandos de Voz */}
           <div className="logs-result voice-logs">
-            <h2>🎤 Registro de Comandos de Voz</h2>
+            <h2>Registro de Comandos de Voz</h2>
             <div className="logs-list">
               {voiceCommandLogs.length === 0 ? (
                 <div className="empty-state">
@@ -124,10 +124,10 @@ function Results() {
 
       <div className="actions">
         <Link to="/capture" className="btn btn-primary">
-          🔄 Nueva Captura
+          Nueva Captura
         </Link>
         <Link to="/" className="btn btn-secondary">
-          🏠 Volver al Inicio
+          Volver al Inicio
         </Link>
       </div>
     </div>

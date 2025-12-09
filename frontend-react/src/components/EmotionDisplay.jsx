@@ -22,19 +22,6 @@ function EmotionDisplay({ emotions }) {
     a[1] > b[1] ? a : b
   );
 
-  // Mapeo de emociones a emojis
-  const emotionEmojis = {
-    happiness: '😊',
-    joy: '😊',
-    sadness: '😢',
-    anger: '😠',
-    fear: '😨',
-    surprise: '😲',
-    neutral: '😐',
-    disgust: '🤢',
-    contempt: '😒'
-  };
-
   // Ordenar emociones por valor
   const sortedEmotions = Object.entries(normalized)
     .sort((a, b) => b[1] - a[1]);
@@ -42,18 +29,14 @@ function EmotionDisplay({ emotions }) {
   return (
     <div className="emotion-display">
       <div className="dominant-emotion">
-        <div className="emoji">
-          {emotionEmojis[dominant[0]] || '🙂'}
-        </div>
         <h3>{dominant[0]}</h3>
-  <p className="confidence">{(dominant[1] * 100).toFixed(1)}%</p>
+        <p className="confidence">{(dominant[1] * 100).toFixed(1)}%</p>
       </div>
 
       <div className="emotion-bars">
         {sortedEmotions.map(([emotion, value]) => (
           <div key={emotion} className="emotion-bar">
             <div className="emotion-label">
-              <span>{emotionEmojis[emotion] || '🙂'}</span>
               <span className="emotion-name">{emotion}</span>
             </div>
             <div className="bar-container">

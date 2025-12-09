@@ -114,7 +114,7 @@ function CameraCapture({ onSnapshot, onEmotionDetected, isActive }) {
           className="snapshot-btn"
           disabled={!isReady}
         >
-          {isReady ? '📸 Tomar Foto' : '⏳ Preparando cámara…'}
+          {isReady ? 'Tomar Foto' : 'Preparando cámara…'}
         </button>
       )}
     </div>

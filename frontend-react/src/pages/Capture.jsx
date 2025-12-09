@@ -15,8 +15,8 @@ function Capture() {
   const [currentGesture, setCurrentGesture] = useState(null);
   
   // REGISTROS SEPARADOS PARA CADA SISTEMA
-  const [faceRecognitionLogs, setFaceRecognitionLogs] = useState([]); // 📸 Logs de reconocimiento facial
-  const [voiceCommandLogs, setVoiceCommandLogs] = useState([]); // 🎤 Logs de comandos de voz
+  const [faceRecognitionLogs, setFaceRecognitionLogs] = useState([]); // Logs de reconocimiento facial
+  const [voiceCommandLogs, setVoiceCommandLogs] = useState([]); // Logs de comandos de voz
   
   const [snapshotPreview, setSnapshotPreview] = useState(null);
   // Metadatos
@@ -39,18 +39,18 @@ function Capture() {
         const movies = await apiClient.getMovieMeta();
         setMovieGenres(movies.genres || []);
         setMovieYears(movies.years || []);
-        addVoiceLog('🎬 Metadatos de películas cargados', 'info');
+        addVoiceLog('Metadatos de películas cargados', 'info');
       } catch (e) {
-        addVoiceLog('⚠️ No se pudieron cargar géneros/años de películas', 'warning');
+        addVoiceLog('No se pudieron cargar géneros/años de películas', 'warning');
       }
       try {
         const air = await apiClient.getAirlineMeta();
         setAirOrigins(air.origins || []);
         setAirDestinations(air.destinations || []);
         setAirCarriers(air.carriers || []);
-        addVoiceLog('🛫 Metadatos de aerolíneas cargados', 'info');
+        addVoiceLog('Metadatos de aerolíneas cargados', 'info');
       } catch (e) {
-        addVoiceLog('⚠️ No se pudieron cargar orígenes/destinos/aerolíneas', 'warning');
+        addVoiceLog('No se pudieron cargar orígenes/destinos/aerolíneas', 'warning');
       }
     };
     loadMeta();
@@ -84,31 +84,31 @@ function Capture() {
   // Controles para el sistema de CÁMARA (emociones + gestos)
   const handleStartCamera = () => {
     setIsCameraActive(true);
-    addFaceLog('📸 Sistema de reconocimiento facial y gestos INICIADO', 'success');
+    addFaceLog('Sistema de reconocimiento facial y gestos INICIADO', 'success');
   };
 
   const handleStopCamera = () => {
     setIsCameraActive(false);
     setCurrentEmotions(null);
     setCurrentGesture(null);
-    addFaceLog('📸 Sistema de reconocimiento facial y gestos DETENIDO', 'info');
+    addFaceLog('Sistema de reconocimiento facial y gestos DETENIDO', 'info');
   };
 
   // Controles para el sistema de AUDIO (comandos de voz)
   const handleStartAudio = () => {
     setIsAudioActive(true);
-    addVoiceLog('🎤 Sistema de comandos de voz INICIADO', 'success');
+    addVoiceLog('Sistema de comandos de voz INICIADO', 'success');
   };
 
   const handleStopAudio = () => {
     setIsAudioActive(false);
-    addVoiceLog('🎤 Sistema de comandos de voz DETENIDO', 'info');
+    addVoiceLog(' Sistema de comandos de voz DETENIDO', 'info');
   };
 
   const handleSnapshot = (imageBlob) => {
     const url = URL.createObjectURL(imageBlob);
     setSnapshotPreview(url);
-    addFaceLog('📷 Foto capturada correctamente', 'success');
+    addFaceLog(' Foto capturada correctamente', 'success');
     
     // Limpiar URL después de 30 segundos
     setTimeout(() => URL.revokeObjectURL(url), 30000);
@@ -151,24 +151,24 @@ function Capture() {
           const secondary = ordered.slice(1).map(([k, v]) => `${k} ${(v * 100).toFixed(1)}%`).join(', ');
 
           setCurrentEmotions(normalized);
-          addFaceLog(`😊 Emoción: ${top[0]} ${(top[1] * 100).toFixed(1)}% | Otras: ${secondary}`, 'success');
+          addFaceLog(` Emoción: ${top[0]} ${(top[1] * 100).toFixed(1)}% | Otras: ${secondary}`, 'success');
         }
       }
 
       // === PROCESAR GESTOS ===
       if (gestureData?.error) {
         setCurrentGesture(null);
-        addFaceLog(`⚠️ Gesto: ${gestureData.message || 'No disponible'}`, 'warning');
+        addFaceLog(` Gesto: ${gestureData.message || 'No disponible'}`, 'warning');
       } else {
         setCurrentGesture(gestureData);
         const gestureInfo = `${gestureData.emoji} ${gestureData.display_name}`;
         const conf = (gestureData.confidence * 100).toFixed(1);
-        addFaceLog(`👋 Gesto detectado: ${gestureInfo} (${conf}%)`, 'success');
+        addFaceLog(` Gesto detectado: ${gestureInfo} (${conf}%)`, 'success');
       }
       
     } catch (error) {
       console.error('Error procesando imagen:', error);
-      addFaceLog(`❌ Error: ${error.message}`, 'error');
+      addFaceLog(`Error: ${error.message}`, 'error');
     }
   };
 
@@ -194,18 +194,18 @@ function Capture() {
       }
       
       const lower = text.toLowerCase();
-      addVoiceLog(`🎤 Transcripción: "${text}"`, 'info');
+      addVoiceLog(`Transcripción: "${text}"`, 'info');
 
       // 1. Global Commands
       if (lower.includes("exit")) {
         handleStopAudio();
-        addVoiceLog("🛑 Comando EXIT detectado", "warning");
+        addVoiceLog("Comando EXIT detectado", "warning");
         return;
       }
       if (lower.includes("reset")) {
         cancelPrompt();
         setLastResult(null);
-        addVoiceLog("🔄 Comando RESET detectado", "info");
+        addVoiceLog("Comando RESET detectado", "info");
         return;
       }
 
@@ -237,7 +237,7 @@ function Capture() {
 
         if (task) {
           // setIsListeningForCommand(false); // No longer needed
-          addVoiceLog(`✅ Comando detectado: ${task}`, "success");
+          addVoiceLog(`Comando detectado: ${task}`, "success");
           
           // Trigger the form logic
           const commandObj = { task, params: { needs: ['all'] } }; 
@@ -247,7 +247,7 @@ function Capture() {
 
     } catch (error) {
       console.error('❌ Error transcribiendo:', error);
-      addVoiceLog(`❌ Error transcribiendo: ${error.message}`, 'error');
+      addVoiceLog(`Error transcribiendo: ${error.message}`, 'error');
     }
   };
 
@@ -260,7 +260,7 @@ function Capture() {
 
     try {
       console.log('🎯 handleCommand llamado con:', command);
-      addVoiceLog(`🎯 Comando parseado: ${command.task || 'desconocido'}`, 'info');
+      addVoiceLog(`Comando parseado: ${command.task || 'desconocido'}`, 'info');
       // Si el parser indicó que faltan parámetros, abrir prompt
       const needs = command?.params?.needs || [];
       if (needs.length) {
@@ -282,17 +282,17 @@ function Capture() {
           init.day = command.params.day || 'viernes';
         }
         setPromptValues(init);
-        addVoiceLog('ℹ️ Falta información. Completa el formulario y confirma.', 'info');
+        addVoiceLog('Falta información. Completa el formulario y confirma.', 'info');
         return;
       }
 
       const response = await apiClient.processCommand(command);
-      console.log('✅ Respuesta del servidor:', response);
-      addVoiceLog(`✅ ${response}`, 'success');
+      console.log('Respuesta del servidor:', response);
+      addVoiceLog(`${response}`, 'success');
       setLastResult(response);
     } catch (error) {
-      console.error('❌ Error procesando comando:', error);
-      addVoiceLog(`❌ Error: ${error.message}`, 'error');
+      console.error('Error procesando comando:', error);
+      addVoiceLog(`Error: ${error.message}`, 'error');
     }
   };
 
@@ -335,12 +335,12 @@ function Capture() {
     delete pc.params.needs;
 
     try {
-      addVoiceLog('⏩ Enviando comando con parámetros completados…', 'info');
+      addVoiceLog('Enviando comando con parámetros completados…', 'info');
       const response = await apiClient.processCommand(pc);
-      addVoiceLog(`✅ ${response}`, 'success');
+      addVoiceLog(`${response}`, 'success');
       setLastResult(response);
     } catch (e) {
-      addVoiceLog(`❌ Error: ${e.message}`, 'error');
+      addVoiceLog(`Error: ${e.message}`, 'error');
     } finally {
       setPendingCommand(null);
       setPromptValues({});
@@ -391,18 +391,18 @@ function Capture() {
       {/* SECCIÓN 1: RECONOCIMIENTO FACIAL Y EMOCIONES */}
       <div className="system-section camera-section">
         <div className="section-header">
-          <h2>📸 Sistema de Reconocimiento Facial</h2>
+          <h2>Sistema de Reconocimiento Facial</h2>
           <p>Detecta emociones en tiempo real usando la cámara</p>
         </div>
 
         <div className="controls">
           {!isCameraActive ? (
             <button onClick={handleStartCamera} className="btn btn-start">
-              ▶️ Activar Cámara
+              Activar Cámara
             </button>
           ) : (
             <button onClick={handleStopCamera} className="btn btn-stop">
-              ⏹️ Detener Cámara
+              Detener Cámara
             </button>
           )}
         </div>
@@ -425,12 +425,12 @@ function Capture() {
 
           <div className="analysis-results">
             <div className="emotions-container">
-              <h3>😊 Emociones Detectadas</h3>
+              <h3>Emociones Detectadas</h3>
               <EmotionDisplay emotions={currentEmotions} />
             </div>
             
             <div className="gesture-container">
-              <h3>👋 Gesto Reconocido</h3>
+              <h3>Gesto Reconocido</h3>
               <GestureDisplay gesture={currentGesture} />
             </div>
           </div>
@@ -438,7 +438,7 @@ function Capture() {
 
         {/* LOG DE RECONOCIMIENTO FACIAL - DEBAJO DE LA CÁMARA */}
         <div className="logs-section-inline facial-logs-inline">
-          <h3>📋 Registro de Actividad</h3>
+          <h3>Registro de Actividad</h3>
           <div className="logs-container">
             {faceRecognitionLogs.length === 0 ? (
               <p className="no-logs">No hay actividad de reconocimiento facial. Activa la cámara para comenzar.</p>
@@ -446,7 +446,7 @@ function Capture() {
               faceRecognitionLogs.map(log => (
                 <div key={log.id} className={`log-entry ${log.type}`}>
                   <span className="timestamp">[{log.timestamp}]</span>
-                  <span className="log-icon">📸</span>
+                  <span className="log-icon"></span>
                   <span className="message">{log.message}</span>
                 </div>
               ))
@@ -461,18 +461,18 @@ function Capture() {
       {/* SECCIÓN 2: COMANDOS DE VOZ */}
       <div className="system-section audio-section">
         <div className="section-header">
-          <h2>🎤 Sistema de Comandos de Voz</h2>
+          <h2>Sistema de Comandos de Voz</h2>
           <p>Habla comandos para obtener predicciones y recomendaciones</p>
         </div>
 
         <div className="controls">
           {!isAudioActive ? (
             <button onClick={handleStartAudio} className="btn btn-start">
-              ▶️ Activar Micrófono
+              Activar Micrófono
             </button>
           ) : (
             <button onClick={handleStopAudio} className="btn btn-stop">
-              ⏹️ Detener Micrófono
+              Detener Micrófono
             </button>
           )}
         </div>
@@ -648,7 +648,7 @@ function Capture() {
           {/* RESULTADO ACTUAL */}
           {lastResult && (
             <div className="last-result-section" style={{marginBottom: '20px', padding: '15px', background: '#f0f8ff', borderRadius: '8px', border: '1px solid #b0d4ff'}}>
-              <h3 style={{marginTop: 0, color: '#0056b3'}}>🎯 Último Resultado</h3>
+              <h3 style={{marginTop: 0, color: '#0056b3'}}>Último Resultado</h3>
               <div className="result-card">
                 <pre style={{whiteSpace: 'pre-wrap', wordWrap: 'break-word'}}>{JSON.stringify(lastResult, null, 2)}</pre>
               </div>
@@ -657,7 +657,7 @@ function Capture() {
 
           {/* LOG DE COMANDOS DE VOZ - AL LADO DEL MICRÓFONO */}
           <div className="logs-section-inline voice-logs-inline">
-            <h3>📋 Registro de Actividad</h3>
+            <h3>Registro de Actividad</h3>
             <div className="logs-container">
               {voiceCommandLogs.length === 0 ? (
                 <p className="no-logs">No hay actividad de comandos de voz. Activa el micrófono para comenzar.</p>
@@ -665,7 +665,7 @@ function Capture() {
                 voiceCommandLogs.map(log => (
                   <div key={log.id} className={`log-entry ${log.type}`}>
                     <span className="timestamp">[{log.timestamp}]</span>
-                    <span className="log-icon">🎤</span>
+                    <span className="log-icon"></span>
                     <span className="message">{log.message}</span>
                   </div>
                 ))
@@ -678,7 +678,7 @@ function Capture() {
       {/* BOTÓN DE RESULTADOS */}
       <div className="results-button-container">
         <button onClick={goToResults} className="btn btn-secondary btn-large">
-          📊 Ver Estadísticas y Resultados
+          Ver Estadísticas y Resultados
         </button>
       </div>
     </div>

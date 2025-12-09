@@ -25,7 +25,7 @@ function Home() {
               className="btn btn-secondary"
               style={{ marginLeft: "10px" }}
             >
-              🐶 Identificar Perro
+              Identificar Perro
             </a>
           </div>
         </div>
@@ -40,7 +40,7 @@ function Home() {
 
       <div className="features">
         <div className="feature-card">
-          <h2>📸 Reconocimiento Facial</h2>
+          <h2>Reconocimiento Facial</h2>
           <p>
             Detecta emociones en tiempo real usando tecnología avanzada de
             análisis facial con IA
@@ -48,7 +48,7 @@ function Home() {
         </div>
 
         <div className="feature-card">
-          <h2>🎤 Procesamiento de Voz</h2>
+          <h2>Procesamiento de Voz</h2>
           <p>
             Transcripción de audio y procesamiento de comandos mediante
             algoritmos de reconocimiento de voz
@@ -56,7 +56,7 @@ function Home() {
         </div>
 
         <div className="feature-card">
-          <h2>🧠 Modelos ML</h2>
+          <h2>Modelos ML</h2>
           <p>
             Predicciones precisas basadas en 10 modelos de machine learning
             entrenados con datos reales
