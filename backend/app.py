@@ -6,7 +6,7 @@ import uvicorn
 # Support both "python app.py" (cwd backend) and "python -m uvicorn backend.app:app"
 try:
     from .services.model_runner import ModelRunner
-    from .services.stt_service import STTService
+    # from .services.stt_service import STTService  # TEMPORARILY DISABLED - slow transformers import
     from .services.emotion_deepface import analyze_image_file
     # Use MediaPipe for better gesture recognition
     from .services.gesture_mediapipe import get_gesture_classifier
@@ -14,7 +14,7 @@ except Exception as e:
     print(f"[WARNING] Relative import failed: {e}")
     try:
         from services.model_runner import ModelRunner
-        from services.stt_service import STTService
+        # from services.stt_service import STTService  # TEMPORARILY DISABLED - slow transformers import
         from services.emotion_deepface import analyze_image_file
         # Use MediaPipe for better gesture recognition
         from services.gesture_mediapipe import get_gesture_classifier
@@ -42,7 +42,8 @@ app.add_middleware(
 
 # Inicializar servicios
 model_runner = ModelRunner()
-stt_service = STTService()
+# stt_service = STTService()  # TEMPORARILY DISABLED - slow transformers import
+stt_service = None  # Will be loaded on-demand
 gesture_classifier = get_gesture_classifier()
 
 # local emotion detector uses Haar cascades

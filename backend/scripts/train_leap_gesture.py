@@ -16,12 +16,12 @@ import cv2
 from sklearn.model_selection import train_test_split
 import random
 
-# Configuration
-IMG_SIZE = (160, 160)  # Optimal for MobileNet
-BATCH_SIZE = 32
-EPOCHS = 25
+# Configuration - OPTIMIZED FOR MAXIMUM ACCURACY
+IMG_SIZE = (224, 224)  # Larger size = better features
+BATCH_SIZE = 16  # Smaller batch = better gradients
+EPOCHS = 30  # More epochs with early stopping
 LEARNING_RATE = 0.0001
-VALIDATION_SPLIT = 0.15
+VALIDATION_SPLIT = 0.20  # More validation data for better evaluation
 
 # Paths
 BASE_DIR = Path(__file__).parent.parent
@@ -90,27 +90,44 @@ class GestureDataGenerator(keras.utils.Sequence):
         img = cv2.resize(img, self.img_size, interpolation=cv2.INTER_LANCZOS4)
         
         if self.augment:
-            # Random horizontal flip
+            # Random horizontal flip (50% chance)
             if random.random() > 0.5:
                 img = cv2.flip(img, 1)
             
-            # Random rotation (-15 to +15 degrees)
-            if random.random() > 0.5:
-                angle = random.uniform(-15, 15)
+            # Random rotation (-20 to +20 degrees)
+            if random.random() > 0.6:
+                angle = random.uniform(-20, 20)
                 h, w = img.shape[:2]
                 M = cv2.getRotationMatrix2D((w/2, h/2), angle, 1.0)
                 img = cv2.warpAffine(img, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
             
-            # Random brightness (0.8 to 1.2)
-            if random.random() > 0.5:
-                brightness = random.uniform(0.8, 1.2)
+            # Random brightness (0.7 to 1.3)
+            if random.random() > 0.6:
+                brightness = random.uniform(0.7, 1.3)
                 img = np.clip(img * brightness, 0, 255).astype(np.uint8)
             
-            # Random contrast (0.8 to 1.2)
-            if random.random() > 0.5:
-                contrast = random.uniform(0.8, 1.2)
+            # Random contrast (0.7 to 1.3)
+            if random.random() > 0.6:
+                contrast = random.uniform(0.7, 1.3)
                 mean = img.mean()
                 img = np.clip((img - mean) * contrast + mean, 0, 255).astype(np.uint8)
+            
+            # Random zoom (90% to 110%)
+            if random.random() > 0.7:
+                zoom = random.uniform(0.9, 1.1)
+                h, w = img.shape[:2]
+                new_h, new_w = int(h * zoom), int(w * zoom)
+                img = cv2.resize(img, (new_w, new_h))
+                if zoom > 1:
+                    # Crop center
+                    start_h = (new_h - h) // 2
+                    start_w = (new_w - w) // 2
+                    img = img[start_h:start_h+h, start_w:start_w+w]
+                else:
+                    # Pad
+                    pad_h = (h - new_h) // 2
+                    pad_w = (w - new_w) // 2
+                    img = cv2.copyMakeBorder(img, pad_h, h-new_h-pad_h, pad_w, w-new_w-pad_w, cv2.BORDER_REPLICATE)
         
         # Apply CLAHE for better contrast
         img_lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
@@ -138,9 +155,9 @@ class GestureDataGenerator(keras.utils.Sequence):
             np.random.shuffle(self.indexes)
 
 def create_model(input_shape, num_classes):
-    """Create MobileNetV3Large model."""
+    """Create optimized MobileNetV3Large model for maximum accuracy."""
     
-    # Base model
+    # Base model with ImageNet weights
     base_model = MobileNetV3Large(
         include_top=False,
         weights='imagenet',
@@ -148,19 +165,23 @@ def create_model(input_shape, num_classes):
         include_preprocessing=False
     )
     
-    # Freeze early layers, unfreeze last 40 for fine-tuning
-    for layer in base_model.layers[:-40]:
+    # Unfreeze last 60 layers for better fine-tuning
+    for layer in base_model.layers[:-60]:
         layer.trainable = False
-    for layer in base_model.layers[-40:]:
+    for layer in base_model.layers[-60:]:
         layer.trainable = True
     
-    # Build model
+    # Build enhanced model with BatchNorm
     inputs = layers.Input(shape=input_shape)
     x = base_model(inputs, training=True)
     x = layers.GlobalAveragePooling2D()(x)
-    x = layers.Dense(256, activation='relu', kernel_regularizer=keras.regularizers.l2(0.01))(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dense(512, activation='relu', kernel_regularizer=keras.regularizers.l2(0.001))(x)
     x = layers.Dropout(0.5)(x)
-    x = layers.Dense(128, activation='relu', kernel_regularizer=keras.regularizers.l2(0.01))(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dense(256, activation='relu', kernel_regularizer=keras.regularizers.l2(0.001))(x)
+    x = layers.Dropout(0.4)(x)
+    x = layers.Dense(128, activation='relu', kernel_regularizer=keras.regularizers.l2(0.001))(x)
     x = layers.Dropout(0.3)(x)
     outputs = layers.Dense(num_classes, activation='softmax')(x)
     
@@ -250,26 +271,33 @@ print(f"   Total parameters: {model.count_params():,}")
 trainable_count = sum(w.shape.num_elements() for w in model.trainable_weights)
 print(f"   Trainable parameters: {trainable_count:,}")
 
-# Callbacks
+# Callbacks - OPTIMIZED
 callbacks_list = [
     callbacks.EarlyStopping(
         monitor='val_accuracy',
-        patience=8,
+        patience=10,  # More patience for better convergence
         restore_best_weights=True,
-        verbose=1
+        verbose=1,
+        min_delta=0.001  # Only stop if no 0.1% improvement
     ),
     callbacks.ReduceLROnPlateau(
         monitor='val_loss',
-        factor=0.5,
-        patience=4,
-        min_lr=1e-7,
-        verbose=1
+        factor=0.3,  # Reduce LR more aggressively
+        patience=5,
+        min_lr=1e-8,
+        verbose=1,
+        min_delta=0.001
     ),
     callbacks.ModelCheckpoint(
         str(MODELS_DIR / "gesture_leap_best.keras"),
         monitor='val_accuracy',
         save_best_only=True,
         verbose=1
+    ),
+    # Learning rate warmup and decay
+    callbacks.LearningRateScheduler(
+        lambda epoch: LEARNING_RATE * (0.95 ** epoch) if epoch > 5 else LEARNING_RATE * (epoch + 1) / 6,
+        verbose=0
     )
 ]
 
