@@ -1,3 +1,5 @@
+import audioread.ffdec
+import importlib
 import os
 import shutil
 import imageio_ffmpeg
@@ -24,8 +26,6 @@ os.environ["PATH"] += os.pathsep + ffmpeg_dir
 
 print("Checking audioread backends again...")
 # Force reload of backends if possible, or just check
-import importlib
-import audioread.ffdec
 importlib.reload(audioread.ffdec)
 
 if audioread.ffdec.available():

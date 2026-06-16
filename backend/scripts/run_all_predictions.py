@@ -8,6 +8,7 @@ import pandas as pd
 MODELS_DIR = Path(__file__).parent.parent / 'models'
 DATA_DIR = Path(__file__).parent.parent / 'datasets'
 
+
 def try_predict(model_path: Path):
     name = model_path.stem
     out = {'model': name}
@@ -34,10 +35,12 @@ def try_predict(model_path: Path):
     if nfi is not None:
         sample = np.zeros((1, int(nfi)))
         ok, res = run_pred(sample)
-        tried.append({'type': 'numpy_n_features_in', 'ok': ok, 'result': str(res)})
+        tried.append({'type': 'numpy_n_features_in',
+                     'ok': ok, 'result': str(res)})
         if ok:
             out['status'] = 'ok'
-            out['predict'] = str(res[0]) if hasattr(res, '__len__') else str(res)
+            out['predict'] = str(res[0]) if hasattr(
+                res, '__len__') else str(res)
             out['tried'] = tried
             return out
 
@@ -47,15 +50,17 @@ def try_predict(model_path: Path):
         cols = list(fni)
         df = pd.DataFrame([[0]*len(cols)], columns=cols)
         ok, res = run_pred(df)
-        tried.append({'type': 'df_feature_names_in', 'ok': ok, 'result': str(res)})
+        tried.append({'type': 'df_feature_names_in',
+                     'ok': ok, 'result': str(res)})
         if ok:
             out['status'] = 'ok'
-            out['predict'] = str(res[0]) if hasattr(res, '__len__') else str(res)
+            out['predict'] = str(res[0]) if hasattr(
+                res, '__len__') else str(res)
             out['tried'] = tried
             return out
 
     # 3) Try a generic small numpy array (3 features)
-    sample = np.zeros((1,3))
+    sample = np.zeros((1, 3))
     ok, res = run_pred(sample)
     tried.append({'type': 'numpy_3', 'ok': ok, 'result': str(res)})
     if ok:
@@ -77,10 +82,12 @@ def try_predict(model_path: Path):
             df0 = pd.read_csv(candidate, nrows=1)
             df = pd.DataFrame([df0.iloc[0].fillna(0).to_dict()])
             ok, res = run_pred(df)
-            tried.append({'type': 'df_from_dataset', 'dataset': str(candidate.name), 'ok': ok, 'result': str(res)})
+            tried.append({'type': 'df_from_dataset', 'dataset': str(
+                candidate.name), 'ok': ok, 'result': str(res)})
             if ok:
                 out['status'] = 'ok'
-                out['predict'] = str(res[0]) if hasattr(res, '__len__') else str(res)
+                out['predict'] = str(res[0]) if hasattr(
+                    res, '__len__') else str(res)
                 out['tried'] = tried
                 return out
         except Exception as e:
@@ -90,12 +97,14 @@ def try_predict(model_path: Path):
     out['tried'] = tried
     return out
 
+
 def main():
     results = []
     for p in sorted(MODELS_DIR.glob('*.joblib')):
         results.append(try_predict(p))
 
     print(json.dumps(results, indent=2, ensure_ascii=False))
+
 
 if __name__ == '__main__':
     main()

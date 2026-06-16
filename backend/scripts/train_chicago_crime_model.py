@@ -18,6 +18,12 @@ Example run (PowerShell):
   python .\scripts\train_chicago_crime_model.py
 
 """
+import matplotlib
+import matplotlib.pyplot as plt
+from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.dummy import DummyRegressor
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.ensemble import RandomForestRegressor
 from pathlib import Path
 import joblib
 import pandas as pd
@@ -35,14 +41,7 @@ except Exception as e:
     print('Install with: pip install bq_helper')
     sys.exit(1)
 
-import numpy as np
-from pathlib import Path
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.dummy import DummyRegressor
-from sklearn.metrics import mean_absolute_error, r2_score
-import matplotlib; matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+matplotlib.use('Agg')
 
 CHARTS_DIR = Path(__file__).parent.parent.parent / 'docs' / 'charts'
 
@@ -57,7 +56,7 @@ def query_chicago_sample(bqh: BigQueryHelper, limit_years: int = 3):
       EXTRACT(DAYOFWEEK FROM `date`) as day_of_week, -- 1=Sunday
       community_area,
       COUNT(1) as incident_count
-    FROM `bigquery-public-data.chicago_crime.crime` 
+    FROM `bigquery-public-data.chicago_crime.crime`
     WHERE EXTRACT(YEAR FROM `date`) >= (EXTRACT(YEAR FROM CURRENT_DATE()) - {limit_years})
     GROUP BY occ_date, year, month, day_of_week, community_area
     ORDER BY occ_date DESC
@@ -80,7 +79,8 @@ def prepare_features(df: pd.DataFrame):
 
 
 def train():
-    bqh = BigQueryHelper(active_project="bigquery-public-data", dataset_name="chicago_crime")
+    bqh = BigQueryHelper(active_project="bigquery-public-data",
+                         dataset_name="chicago_crime")
 
     # Sanity: list tables
     try:
@@ -97,7 +97,8 @@ def train():
     X, y = prepare_features(df)
 
     # train/test split
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42)
 
     print('Training RandomForestRegressor...')
     rf = RandomForestRegressor(n_estimators=200, random_state=42, n_jobs=-1)
@@ -110,8 +111,10 @@ def train():
 
     feature_cols = ['dow0', 'month', 'community_area']
     print('--- 5-fold Cross-Validation ---')
-    cv = cross_val_score(rf, X, y, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1)
-    base = cross_val_score(DummyRegressor(strategy='mean'), X, y, cv=5, scoring='neg_mean_absolute_error')
+    cv = cross_val_score(
+        rf, X, y, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1)
+    base = cross_val_score(DummyRegressor(strategy='mean'),
+                           X, y, cv=5, scoring='neg_mean_absolute_error')
     print(f'Model CV MAE : {-cv.mean():.3f} +/- {cv.std():.3f}')
     print(f'Baseline MAE : {-base.mean():.3f} +/- {base.std():.3f}')
 
@@ -121,7 +124,8 @@ def train():
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.bar(range(len(feature_cols)), imp[idx], color='steelblue')
     ax.set_xticks(range(len(feature_cols)))
-    ax.set_xticklabels([feature_cols[i] for i in idx], rotation=0, ha='center', fontsize=10)
+    ax.set_xticklabels([feature_cols[i]
+                       for i in idx], rotation=0, ha='center', fontsize=10)
     ax.set_title('Feature Importances — Chicago Crime')
     ax.set_ylabel('Importance')
     plt.tight_layout()

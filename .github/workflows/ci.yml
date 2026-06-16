@@ -22,12 +22,7 @@ jobs:
         run: pip install flake8
 
       - name: Run flake8
-        run: |
-          flake8 backend/ \
-            --max-line-length=120 \
-            --exclude=backend/datasets,backend/models \
-            --extend-ignore=E302,E303,E501,W503,W504,W605,F401,E711,E722,E741 \
-            --count --statistics
+        run: flake8 backend/ --count --statistics   # config in .flake8
 
   # ── 2. Model smoke tests ───────────────────────────────────────────────────
   model-smoke-tests:

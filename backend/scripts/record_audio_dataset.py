@@ -14,15 +14,17 @@ METADATA_PATH = os.path.join(DATASET_PATH, "metadata.csv")
 SAMPLE_RATE = 22050  # Must match the training script
 DURATION = 3.0       # Seconds per clip (adjust if you speak longer phrases)
 
+
 def record_clip(filename, duration=DURATION):
     print(f"  [REC] Recording for {duration} seconds...", end="", flush=True)
-    
+
     # Record audio
-    recording = sd.rec(int(duration * SAMPLE_RATE), samplerate=SAMPLE_RATE, channels=1)
+    recording = sd.rec(int(duration * SAMPLE_RATE),
+                       samplerate=SAMPLE_RATE, channels=1)
     sd.wait()  # Wait until recording is finished
-    
+
     print(" Done.")
-    
+
     # Save as WAV
     filepath = os.path.join(WAVS_PATH, filename)
     # Convert to 16-bit PCM for compatibility
@@ -30,29 +32,32 @@ def record_clip(filename, duration=DURATION):
     wav.write(filepath, SAMPLE_RATE, data)
     print(f"  [SAVE] Saved to {filepath}")
 
+
 def update_metadata(filename, transcript):
     # Load or create dataframe
     if os.path.exists(METADATA_PATH):
         try:
             df = pd.read_csv(METADATA_PATH)
         except pd.errors.EmptyDataError:
-             df = pd.DataFrame(columns=['filename', 'transcript'])
+            df = pd.DataFrame(columns=['filename', 'transcript'])
     else:
         df = pd.DataFrame(columns=['filename', 'transcript'])
-    
+
     # Add new row
-    new_row = pd.DataFrame({'filename': [filename], 'transcript': [transcript]})
+    new_row = pd.DataFrame(
+        {'filename': [filename], 'transcript': [transcript]})
     df = pd.concat([df, new_row], ignore_index=True)
-    
+
     # Save
     df.to_csv(METADATA_PATH, index=False)
     print(f"  [META] Updated metadata.csv with: '{transcript}'")
+
 
 def main():
     # Ensure directories exist
     if not os.path.exists(WAVS_PATH):
         os.makedirs(WAVS_PATH)
-        
+
     print("==========================================")
     print("   AUDIO DATASET RECORDER TOOL")
     print("==========================================")
@@ -65,7 +70,7 @@ def main():
     print(f"3. Speak clearly for {DURATION} seconds.")
     print("4. Type 'q' to quit.")
     print("------------------------------------------")
-    
+
     # Determine starting index
     count = 1
     if os.path.exists(METADATA_PATH):
@@ -81,23 +86,23 @@ def main():
                     count = len(df) + 1
         except:
             pass
-            
+
     while True:
         print(f"\n--- Sample #{count} ---")
         transcript = input("Enter transcript (or 'q' to quit): ").strip()
-        
+
         if transcript.lower() == 'q':
             print("Exiting...")
             break
-            
+
         if not transcript:
             print("Transcript cannot be empty.")
             continue
-            
+
         filename = f"audio_{count:03d}.wav"
-        
+
         input(f"Press ENTER to start recording '{transcript}'...")
-        
+
         try:
             record_clip(filename)
             update_metadata(filename, transcript)
@@ -105,6 +110,7 @@ def main():
         except Exception as e:
             print(f"Error recording: {e}")
             print("Make sure you have a microphone connected and configured.")
+
 
 if __name__ == "__main__":
     main()

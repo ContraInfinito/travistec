@@ -9,29 +9,30 @@ try:
     import numpy as np
     from pathlib import Path
     from typing import Dict, Any, Optional
-    
+
     MEDIAPIPE_AVAILABLE = True
 except ImportError as e:
     print(f"[WARNING] MediaPipe not available: {e}")
     MEDIAPIPE_AVAILABLE = False
+
 
 class MediaPipeGestureClassifier:
     """
     Professional gesture recognition using MediaPipe.
     Supports: 👍 👎 ✌️ 👋 ✊ 👌 🤘 🤙 🖐️
     """
-    
+
     def __init__(self):
         if not MEDIAPIPE_AVAILABLE:
             raise ImportError("MediaPipe not available")
-            
+
         self.mp_hands = mp.solutions.hands
         self.hands = self.mp_hands.Hands(
             static_image_mode=True,
             max_num_hands=1,
             min_detection_confidence=0.7
         )
-        
+
         # Gesture mapping
         self.gesture_names = {
             'thumbs_up': 'Thumbs Up',
@@ -42,7 +43,7 @@ class MediaPipeGestureClassifier:
             'closed_fist': 'Fist',
             'love_you': 'I Love You'
         }
-        
+
         self.gesture_emojis = {
             'thumbs_up': '👍',
             'thumbs_down': '👎',
@@ -52,26 +53,26 @@ class MediaPipeGestureClassifier:
             'closed_fist': '✊',
             'love_you': '🤟'
         }
-    
+
     def classify_from_bytes(self, image_bytes: bytes) -> Dict[str, Any]:
         """Classify gesture from image bytes."""
         # Decode image
         nparr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
+
         if img is None:
             return {'error': 'invalid_image'}
-        
+
         return self.classify_from_array(img)
-    
+
     def classify_from_array(self, img: np.ndarray) -> Dict[str, Any]:
         """Classify gesture from OpenCV image."""
         # Convert BGR to RGB
         rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        
+
         # Process
         results = self.hands.process(rgb)
-        
+
         if not results.multi_hand_landmarks:
             return {
                 'gesture': 'no_hand',
@@ -80,13 +81,13 @@ class MediaPipeGestureClassifier:
                 'confidence': 0.0,
                 'all_predictions': {}
             }
-        
+
         # Get first hand
         hand_landmarks = results.multi_hand_landmarks[0]
-        
+
         # Recognize gesture
         gesture, confidence = self._recognize_gesture(hand_landmarks)
-        
+
         return {
             'gesture': gesture,
             'display_name': self.gesture_names.get(gesture, gesture),
@@ -100,10 +101,10 @@ class MediaPipeGestureClassifier:
                 'confidence': confidence
             }]
         }
-    
+
     def _recognize_gesture(self, landmarks) -> tuple:
         """Recognize gesture from hand landmarks."""
-        
+
         # Extract landmark positions
         thumb_tip = landmarks.landmark[4]
         thumb_ip = landmarks.landmark[3]
@@ -116,47 +117,48 @@ class MediaPipeGestureClassifier:
         pinky_tip = landmarks.landmark[20]
         pinky_pip = landmarks.landmark[18]
         wrist = landmarks.landmark[0]
-        
+
         # Check which fingers are extended
         thumb_extended = thumb_tip.y < thumb_ip.y
         index_extended = index_tip.y < index_pip.y
         middle_extended = middle_tip.y < middle_pip.y
         ring_extended = ring_tip.y < ring_pip.y
         pinky_extended = pinky_tip.y < pinky_pip.y
-        
-        fingers_up = sum([index_extended, middle_extended, ring_extended, pinky_extended])
-        
+
+        fingers_up = sum([index_extended, middle_extended,
+                         ring_extended, pinky_extended])
+
         # Thumbs up: thumb up, others down
         if thumb_tip.y < wrist.y and fingers_up == 0:
             return 'thumbs_up', 0.95
-        
+
         # Thumbs down: thumb down, others down
         if thumb_tip.y > wrist.y + 0.3 and fingers_up == 0:
             return 'thumbs_down', 0.95
-        
+
         # Open palm (stop): all fingers extended
         if fingers_up >= 4 and thumb_extended:
             return 'open_palm', 0.92
-        
+
         # Victory: index and middle up
         if fingers_up == 2 and index_extended and middle_extended:
             return 'victory', 0.90
-        
+
         # Pointing up: only index extended
         if fingers_up == 1 and index_extended:
             return 'pointing_up', 0.88
-        
+
         # Closed fist: no fingers extended
         if fingers_up == 0 and not thumb_extended:
             return 'closed_fist', 0.85
-        
+
         # I Love You: thumb, index, pinky extended
         if thumb_extended and index_extended and pinky_extended and not middle_extended:
             return 'love_you', 0.87
-        
+
         # Unknown gesture
         return 'unknown', 0.5
-    
+
     def is_available(self) -> bool:
         """Check if classifier is available."""
         return True
@@ -164,6 +166,7 @@ class MediaPipeGestureClassifier:
 
 # Global instance
 _classifier: Optional[MediaPipeGestureClassifier] = None
+
 
 def get_gesture_classifier() -> MediaPipeGestureClassifier:
     """Get or create global classifier instance."""
@@ -173,16 +176,19 @@ def get_gesture_classifier() -> MediaPipeGestureClassifier:
             # Fallback to old classifier
             try:
                 from .gesture_classifier import GestureClassifier
-                print("[INFO] Using legacy gesture classifier (MediaPipe not available)")
+                print(
+                    "[INFO] Using legacy gesture classifier (MediaPipe not available)")
                 _classifier = GestureClassifier()
             except:
                 from gesture_classifier import GestureClassifier
-                print("[INFO] Using legacy gesture classifier (MediaPipe not available)")
+                print(
+                    "[INFO] Using legacy gesture classifier (MediaPipe not available)")
                 _classifier = GestureClassifier()
         else:
             print("[INFO] Using MediaPipe gesture classifier (Professional)")
             _classifier = MediaPipeGestureClassifier()
     return _classifier
+
 
 def predict_gesture(image_bytes: bytes) -> Dict[str, Any]:
     """Predict gesture from image bytes."""

@@ -53,11 +53,11 @@ def _fetch_bitcoin_features(horizon_days: int) -> Tuple[list, bool]:
         return _bitcoin_fallback(horizon_days), False
 
     try:
-        df = yf.download(cache_key, period="45d", interval="1d", progress=False, auto_adjust=True)
+        df = yf.download(cache_key, period="45d", interval="1d",
+                         progress=False, auto_adjust=True)
         if df is None or len(df) < 10:
             raise ValueError("insufficient data")
         closes = df["Close"].dropna()
-        p = closes.iloc[-1]
         features = [
             float(closes.iloc[-1]),   # lag_1 (most recent close)
             float(closes.iloc[-2]),   # lag_2
@@ -70,7 +70,8 @@ def _fetch_bitcoin_features(horizon_days: int) -> Tuple[list, bool]:
         _PRICE_CACHE[cache_key] = (features, now)
         return features, True
     except Exception as e:
-        print(f"[ModelRunner] yfinance BTC fetch failed: {e}. Using cached/fallback.")
+        print(
+            f"[ModelRunner] yfinance BTC fetch failed: {e}. Using cached/fallback.")
         if cached:
             feats, _ = cached
             return feats[:-1] + [float(horizon_days)], False
@@ -99,7 +100,8 @@ def _fetch_sp500_features(horizon_days: int) -> Tuple[list, bool]:
         return _sp500_fallback(horizon_days), False
 
     try:
-        df = yf.download(cache_key, period="45d", interval="1d", progress=False, auto_adjust=True)
+        df = yf.download(cache_key, period="45d", interval="1d",
+                         progress=False, auto_adjust=True)
         if df is None or len(df) < 10:
             raise ValueError("insufficient data")
         row = df.iloc[-1]
@@ -121,7 +123,8 @@ def _fetch_sp500_features(horizon_days: int) -> Tuple[list, bool]:
         _PRICE_CACHE[cache_key] = (features, now)
         return features, True
     except Exception as e:
-        print(f"[ModelRunner] yfinance SP500 fetch failed: {e}. Using cached/fallback.")
+        print(
+            f"[ModelRunner] yfinance SP500 fetch failed: {e}. Using cached/fallback.")
         if cached:
             feats, _ = cached
             return feats[:-1] + [float(horizon_days)], False
@@ -137,6 +140,7 @@ def _sp500_fallback(horizon_days: int) -> list:
 
 _AVOCADO_CACHE: Optional[dict] = None
 
+
 def _fetch_avocado_features(horizon_months: int) -> list:
     """Build inference features from real dataset history instead of seeded noise.
     Uses the last 4 months of mean conventional avocado prices across all regions."""
@@ -144,7 +148,8 @@ def _fetch_avocado_features(horizon_months: int) -> list:
     if _AVOCADO_CACHE is None:
         try:
             import pandas as pd
-            dataset_path = os.path.join(os.path.dirname(__file__), "..", "datasets", "avocado", "avocado.csv")
+            dataset_path = os.path.join(os.path.dirname(
+                __file__), "..", "datasets", "avocado", "avocado.csv")
             df = pd.read_csv(dataset_path, parse_dates=["Date"])
             df = df[df["type"] == "conventional"]
             df["month"] = df["Date"].dt.to_period("M").dt.to_timestamp()
@@ -171,7 +176,8 @@ def _fetch_avocado_features(horizon_months: int) -> list:
                 "rolling_3": float(prices.iloc[-3:].mean()),
             }
         except Exception as e:
-            print(f"[ModelRunner] Could not load avocado dataset: {e}. Using fallback.")
+            print(
+                f"[ModelRunner] Could not load avocado dataset: {e}. Using fallback.")
             _AVOCADO_CACHE = {
                 "avg_price": 1.5, "total_volume": 100000.0,
                 "v_4046": 50000.0, "v_4225": 30000.0, "v_4770": 10000.0,
@@ -222,7 +228,7 @@ class ModelRunner:
                     print(
                         f"[ModelRunner] Saltando {f} porque TensorFlow no está disponible.")
                     continue
-                
+
                 # Skip audio_ctc_model as it is handled by STTService with custom objects
                 if "audio_ctc_model" in f:
                     continue
@@ -310,7 +316,8 @@ class ModelRunner:
 
                 features, is_live = _fetch_bitcoin_features(horizon_days)
                 if not is_live:
-                    print("[ModelRunner] WARNING: Bitcoin features from fallback/cache — not live market data.")
+                    print(
+                        "[ModelRunner] WARNING: Bitcoin features from fallback/cache — not live market data.")
                 return features
             if m in ("sp500_model",):
                 # SP500 - Predicción a CORTO PLAZO (días)
@@ -334,7 +341,8 @@ class ModelRunner:
 
                 features, is_live = _fetch_sp500_features(horizon_days)
                 if not is_live:
-                    print("[ModelRunner] WARNING: SP500 features from fallback/cache — not live market data.")
+                    print(
+                        "[ModelRunner] WARNING: SP500 features from fallback/cache — not live market data.")
                 return features
             if m in ("avocado_model", "avocado_price"):
                 # Avocado - Predicción a CORTO PLAZO (months)
@@ -568,7 +576,8 @@ class ModelRunner:
 
         try:
             # Cargar y preprocesar imagen
-            img = keras.preprocessing.image.load_img(image_path, target_size=(224, 224))
+            img = keras.preprocessing.image.load_img(
+                image_path, target_size=(224, 224))
             x = keras.preprocessing.image.img_to_array(img)
             x = np.expand_dims(x, axis=0)
             x = keras.applications.resnet50.preprocess_input(x)
@@ -669,10 +678,8 @@ class ModelRunner:
                         'popularity', ascending=False).head(top_k)
                     titles = df_sorted['title'].tolist()
                     return {"model": model_name, "input": params or {}, "prediction": titles}
-                except Exception as e:
+                except Exception:
                     # fallback: if movies is a list
-                    import random
-                    import time
                     random.seed(int(time.time() * 1000))
                     movies_list = loaded.get('movies', [])
                     if isinstance(movies_list, list) and len(movies_list) > 0:

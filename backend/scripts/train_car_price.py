@@ -1,3 +1,5 @@
+import joblib
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -5,9 +7,8 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.dummy import DummyRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-import matplotlib; matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import joblib
+import matplotlib
+matplotlib.use('Agg')
 
 CHARTS_DIR = Path(__file__).parent.parent.parent / 'docs' / 'charts'
 
@@ -45,14 +46,16 @@ def main():
     df = pd.read_csv(data_path)
 
     # Basic cleaning
-    df = df.dropna(subset=['Year', 'Present_Price', 'Kms_Driven', 'Selling_Price'])
+    df = df.dropna(subset=['Year', 'Present_Price',
+                   'Kms_Driven', 'Selling_Price'])
 
     # Ensure numeric types
     df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
     df['Present_Price'] = pd.to_numeric(df['Present_Price'], errors='coerce')
     df['Kms_Driven'] = pd.to_numeric(df['Kms_Driven'], errors='coerce')
     df['Selling_Price'] = pd.to_numeric(df['Selling_Price'], errors='coerce')
-    df = df.dropna(subset=['Year', 'Present_Price', 'Kms_Driven', 'Selling_Price'])
+    df = df.dropna(subset=['Year', 'Present_Price',
+                   'Kms_Driven', 'Selling_Price'])
 
     # Encode categorical columns into integers matching ModelRunner expectations
     df['fuel_enc'] = df['Fuel_Type'].apply(encode_fuel)
@@ -61,20 +64,24 @@ def main():
 
     # Owner column exists; ensure numeric
     if 'Owner' in df.columns:
-        df['Owner'] = pd.to_numeric(df['Owner'], errors='coerce').fillna(0).astype(int)
+        df['Owner'] = pd.to_numeric(
+            df['Owner'], errors='coerce').fillna(0).astype(int)
     else:
         df['Owner'] = 0
 
     # Feature order required by ModelRunner: [year, present_price, km, fuel_type, seller_type, transmission, owner]
-    feature_cols = ['Year', 'Present_Price', 'Kms_Driven', 'fuel_enc', 'seller_enc', 'trans_enc', 'Owner']
+    feature_cols = ['Year', 'Present_Price', 'Kms_Driven',
+                    'fuel_enc', 'seller_enc', 'trans_enc', 'Owner']
 
     X = df[feature_cols].astype(float).to_numpy()
     y = df['Selling_Price'].astype(float).to_numpy()
 
     # Train/test split
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42)
 
-    print(f"Training RandomForestRegressor on {X_train.shape[0]} samples, {X_train.shape[1]} features")
+    print(
+        f"Training RandomForestRegressor on {X_train.shape[0]} samples, {X_train.shape[1]} features")
     model = RandomForestRegressor(n_estimators=200, random_state=42, n_jobs=-1)
     model.fit(X_train, y_train)
 
@@ -91,8 +98,10 @@ def main():
     print(f"Test  MAE : {mae_test:.4f}")
 
     print('--- 5-fold Cross-Validation ---')
-    cv = cross_val_score(model, X, y, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1)
-    base = cross_val_score(DummyRegressor(strategy='mean'), X, y, cv=5, scoring='neg_mean_absolute_error')
+    cv = cross_val_score(
+        model, X, y, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1)
+    base = cross_val_score(DummyRegressor(strategy='mean'),
+                           X, y, cv=5, scoring='neg_mean_absolute_error')
     print(f'Model CV MAE : {-cv.mean():.4f} +/- {cv.std():.4f}')
     print(f'Baseline MAE : {-base.mean():.4f} +/- {base.std():.4f}')
 
@@ -102,7 +111,8 @@ def main():
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.bar(range(len(feature_cols)), imp[idx], color='steelblue')
     ax.set_xticks(range(len(feature_cols)))
-    ax.set_xticklabels([feature_cols[i] for i in idx], rotation=45, ha='right', fontsize=9)
+    ax.set_xticklabels([feature_cols[i]
+                       for i in idx], rotation=45, ha='right', fontsize=9)
     ax.set_title('Feature Importances — Car Price')
     ax.set_ylabel('Importance')
     plt.tight_layout()

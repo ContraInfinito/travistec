@@ -5,6 +5,7 @@ Provides analyze_image_file(path) -> dict with keys:
 If DeepFace fails to detect, falls back to the simple Haar+smile heuristic.
 """
 from __future__ import annotations
+import cv2
 
 import os
 from pathlib import Path
@@ -15,7 +16,6 @@ os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
 os.environ.setdefault("KERAS_BACKEND", "tensorflow")
 # Quiet TensorFlow C++ logs (optional)
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
-import cv2
 
 # Ensure DeepFace uses legacy Keras API with TF >= 2.20
 os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
@@ -64,7 +64,8 @@ def _analyze_with_deepface(img_path: str) -> Dict[str, Any]:
     if details:
         # choose max mean
         n = float(len(details))
-        dominant = max(agg.items(), key=lambda kv: kv[1] / n)[0] if agg else details[0]["top_emotion"]
+        dominant = max(
+            agg.items(), key=lambda kv: kv[1] / n)[0] if agg else details[0]["top_emotion"]
     else:
         dominant = "no_face"
 

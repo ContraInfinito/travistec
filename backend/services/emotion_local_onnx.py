@@ -108,7 +108,8 @@ def _analyze_with_ferplus(img_bgr: np.ndarray) -> Dict[str, Any]:
 
     # Init session
     try:
-        sess = ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
+        sess = ort.InferenceSession(str(model_path), providers=[
+                                    "CPUExecutionProvider"])
         input_name = sess.get_inputs()[0].name
         output_name = sess.get_outputs()[0].name
     except Exception as e:
@@ -116,8 +117,10 @@ def _analyze_with_ferplus(img_bgr: np.ndarray) -> Dict[str, Any]:
 
     # Face detection
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4)
+    face_cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    faces = face_cascade.detectMultiScale(
+        gray, scaleFactor=1.1, minNeighbors=4)
 
     if len(faces) == 0:
         return {"dominant_emotion": "no_face", "face_count": 0, "details": []}
@@ -127,7 +130,7 @@ def _analyze_with_ferplus(img_bgr: np.ndarray) -> Dict[str, Any]:
     agg_probs = np.zeros(len(FERPLUS_LABELS), dtype=np.float32)
 
     for (x, y, w, h) in faces:
-        roi_gray = gray[y : y + h, x : x + w]
+        roi_gray = gray[y: y + h, x: x + w]
         inp = _preprocess_face(roi_gray)
         try:
             logits = sess.run([output_name], {input_name: inp})[0]

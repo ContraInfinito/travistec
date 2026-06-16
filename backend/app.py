@@ -104,6 +104,7 @@ async def face_sentiment(image: UploadFile = File(...)):
 # Lazy-load gesture classifier to avoid slowing down startup
 _gesture_classifier = None
 
+
 def _get_gesture_classifier():
     global _gesture_classifier
     if _gesture_classifier is None:
@@ -124,13 +125,13 @@ async def classify_gesture(image: UploadFile = File(...)):
     try:
         classifier = _get_gesture_classifier()
         tmp_path = _save_upload_to_temp(image)
-        
+
         try:
             result = classifier.predict_from_file(tmp_path)
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
-        
+
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -243,14 +244,17 @@ async def execute_command(payload: dict):
 
                 result = model_runner.predict(
                     'bitcoin_model', params={'years': years})
-                pred = result.get('prediction') if isinstance(result, dict) else None
-                price_usd = float(pred[0]) if isinstance(pred, list) and pred else None
+                pred = result.get('prediction') if isinstance(
+                    result, dict) else None
+                price_usd = float(pred[0]) if isinstance(
+                    pred, list) and pred else None
                 if price_usd is None:
                     return {"response": "₿ Bitcoin model not available on server"}
 
                 # Con features en vivo, la fecha objetivo se calcula desde hoy.
                 from datetime import date, timedelta
-                target_date = (date.today() + timedelta(days=horizon_days)).isoformat()
+                target_date = (
+                    date.today() + timedelta(days=horizon_days)).isoformat()
 
                 response_text = f"₿ Bitcoin en {years} año(s): ${price_usd:,.2f} USD"
                 response_text += f" | Fecha objetivo: {target_date}"
@@ -331,9 +335,12 @@ async def execute_command(payload: dict):
             # (ModelRunner obtiene ^GSPC vía yfinance).
             try:
                 days = int(params.get('days', params.get('years', 1)))
-                result = model_runner.predict('sp500_model', params={'days': days})
-                pred = result.get('prediction') if isinstance(result, dict) else None
-                price = float(pred[0]) if isinstance(pred, list) and pred else None
+                result = model_runner.predict(
+                    'sp500_model', params={'days': days})
+                pred = result.get('prediction') if isinstance(
+                    result, dict) else None
+                price = float(pred[0]) if isinstance(
+                    pred, list) and pred else None
                 if price is not None:
                     response_text = f"📈 S&P 500 en {days} día{'s' if days != 1 else ''}: ${price:,.2f}"
                 else:
@@ -353,9 +360,12 @@ async def execute_command(payload: dict):
                     months = max(1, int(float(params.get('days')) / 30))
                 else:
                     months = 1
-                result = model_runner.predict('avocado_model', params={'months': months})
-                pred = result.get('prediction') if isinstance(result, dict) else None
-                price = float(pred[0]) if isinstance(pred, list) and pred else None
+                result = model_runner.predict(
+                    'avocado_model', params={'months': months})
+                pred = result.get('prediction') if isinstance(
+                    result, dict) else None
+                price = float(pred[0]) if isinstance(
+                    pred, list) and pred else None
                 if price is not None:
                     response_text = f"🥑 Precio aguacate en {months} mes(es): ${price:.2f}"
                 else:

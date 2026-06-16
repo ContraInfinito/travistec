@@ -25,9 +25,9 @@ except ImportError:
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 DATASET_PATH = Path(__file__).parent.parent / "datasets" / "audio"
-WAVS_PATH    = DATASET_PATH / "wavs"
+WAVS_PATH = DATASET_PATH / "wavs"
 METADATA_PATH = DATASET_PATH / "metadata.csv"
-SAMPLE_RATE  = 22050
+SAMPLE_RATE = 22050
 
 # ── Voices ───────────────────────────────────────────────────────────────────
 EN_VOICES = [
@@ -47,6 +47,7 @@ ES_VOICES = [
 
 # Commands better pronounced by Spanish-native voices
 SPANISH_COMMANDS = {"aguacate", "carro", "masa", "corporal"}
+
 
 def _voices_for(command: str) -> list:
     if command in SPANISH_COMMANDS:
@@ -106,7 +107,7 @@ async def main():
     counter = max(existing_nums, default=0) + 1
 
     new_rows = []
-    failed  = []
+    failed = []
 
     for cmd_idx, command in enumerate(commands, 1):
         voices = _voices_for(command)
@@ -115,19 +116,21 @@ async def main():
 
         for voice in voices:
             short = voice.split("-")[-1].replace("Neural", "").lower()
-            base_name  = f"tts_{counter:05d}_{command}_{short}"
-            wav_path   = WAVS_PATH / f"{base_name}.wav"
+            base_name = f"tts_{counter:05d}_{command}_{short}"
+            wav_path = WAVS_PATH / f"{base_name}.wav"
 
             try:
                 audio = await _tts_to_wav(command, voice, wav_path)
-                new_rows.append({"filename": wav_path.name, "transcript": command})
+                new_rows.append(
+                    {"filename": wav_path.name, "transcript": command})
                 counter += 1
 
                 for aug_label, aug_audio in _augment(audio, SAMPLE_RATE):
                     aug_name = f"tts_{counter:05d}_{command}_{short}_{aug_label}"
                     aug_path = WAVS_PATH / f"{aug_name}.wav"
                     sf.write(str(aug_path), aug_audio, SAMPLE_RATE)
-                    new_rows.append({"filename": aug_path.name, "transcript": command})
+                    new_rows.append(
+                        {"filename": aug_path.name, "transcript": command})
                     counter += 1
 
                 await asyncio.sleep(0.25)  # polite rate limiting

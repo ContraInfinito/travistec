@@ -20,6 +20,7 @@ MODEL_MAP = {
 MODELS_DIR = Path(__file__).parent.parent / 'models'
 DATA_DIR = Path(__file__).parent.parent / 'datasets'
 
+
 def build_df_from_dataset(name):
     p = DATA_DIR / name
     if not p.exists():
@@ -31,6 +32,7 @@ def build_df_from_dataset(name):
         return df.fillna(0)
     except Exception:
         return None
+
 
 def run_smoke_for_model(model_name):
     out = {'model': model_name}
@@ -97,12 +99,14 @@ def run_smoke_for_model(model_name):
     out['tried'] = tried
     return out
 
+
 def main():
     results = []
     for model_file in sorted(MODELS_DIR.glob('*.joblib')):
         model_name = model_file.stem
         results.append(run_smoke_for_model(model_name))
     print(json.dumps(results, indent=2, ensure_ascii=False))
+
 
 if __name__ == '__main__':
     main()

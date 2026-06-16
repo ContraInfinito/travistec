@@ -19,7 +19,7 @@ try:
     print("Available backends:")
     for backend in audioread.available_backends():
         print(f" - {backend}")
-        
+
     # specifically check for ffmpeg backend
     if 'ffmpeg' in audioread.available_backends():
         print("FFmpeg backend is available!")

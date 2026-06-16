@@ -3,6 +3,7 @@ import joblib
 
 MODEL = Path(__file__).parent.parent / 'models' / 'bmi_model.joblib'
 
+
 def main():
     if not MODEL.exists():
         print('BMI model not found:', MODEL)
@@ -13,6 +14,7 @@ def main():
     sample = [[1.75, 70, 30]]
     pred = model.predict(sample)
     print('Predicted BodyFat:', pred[0])
+
 
 if __name__ == '__main__':
     main()

@@ -4,17 +4,17 @@ High-quality dataset: 20,000 images, 10 gestures, 10 people
 Expected accuracy: 90%+
 """
 
+import random
+from sklearn.model_selection import train_test_split
+import cv2
+from keras.applications import MobileNetV3Large
+from keras import layers, models, optimizers, callbacks
+import keras
+from pathlib import Path
+import numpy as np
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-import numpy as np
-from pathlib import Path
-import keras
-from keras import layers, models, optimizers, callbacks
-from keras.applications import MobileNetV3Large
-import cv2
-from sklearn.model_selection import train_test_split
-import random
 
 # Configuration - OPTIMIZED FOR MAXIMUM ACCURACY
 IMG_SIZE = (224, 224)  # Larger size = better features
@@ -50,10 +50,11 @@ print(f"Image size: {IMG_SIZE}")
 print(f"Batch size: {BATCH_SIZE}")
 print(f"Epochs: {EPOCHS}\n")
 
+
 class GestureDataGenerator(keras.utils.Sequence):
     """Data generator for LeapGestRecog dataset."""
-    
-    def __init__(self, image_paths, labels, batch_size=32, img_size=(160, 160), 
+
+    def __init__(self, image_paths, labels, batch_size=32, img_size=(160, 160),
                  augment=True, shuffle=True):
         self.image_paths = image_paths
         self.labels = labels
@@ -62,21 +63,22 @@ class GestureDataGenerator(keras.utils.Sequence):
         self.augment = augment
         self.shuffle = shuffle
         self.indexes = np.arange(len(self.image_paths))
-        
+
         if self.shuffle:
             np.random.shuffle(self.indexes)
-    
+
     def __len__(self):
         return int(np.ceil(len(self.image_paths) / self.batch_size))
-    
+
     def __getitem__(self, index):
-        batch_indexes = self.indexes[index * self.batch_size:(index + 1) * self.batch_size]
+        batch_indexes = self.indexes[index *
+                                     self.batch_size:(index + 1) * self.batch_size]
         batch_paths = [self.image_paths[i] for i in batch_indexes]
         batch_labels = [self.labels[i] for i in batch_indexes]
-        
+
         X, y = self._generate_batch(batch_paths, batch_labels)
         return X, y
-    
+
     def _load_and_preprocess(self, img_path):
         """Load and preprocess image."""
         # Load image
@@ -85,33 +87,35 @@ class GestureDataGenerator(keras.utils.Sequence):
             img = np.zeros((*self.img_size, 3), dtype=np.uint8)
         else:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        
+
         # Resize
         img = cv2.resize(img, self.img_size, interpolation=cv2.INTER_LANCZOS4)
-        
+
         if self.augment:
             # Random horizontal flip (50% chance)
             if random.random() > 0.5:
                 img = cv2.flip(img, 1)
-            
+
             # Random rotation (-20 to +20 degrees)
             if random.random() > 0.6:
                 angle = random.uniform(-20, 20)
                 h, w = img.shape[:2]
                 M = cv2.getRotationMatrix2D((w/2, h/2), angle, 1.0)
-                img = cv2.warpAffine(img, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
-            
+                img = cv2.warpAffine(
+                    img, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
+
             # Random brightness (0.7 to 1.3)
             if random.random() > 0.6:
                 brightness = random.uniform(0.7, 1.3)
                 img = np.clip(img * brightness, 0, 255).astype(np.uint8)
-            
+
             # Random contrast (0.7 to 1.3)
             if random.random() > 0.6:
                 contrast = random.uniform(0.7, 1.3)
                 mean = img.mean()
-                img = np.clip((img - mean) * contrast + mean, 0, 255).astype(np.uint8)
-            
+                img = np.clip((img - mean) * contrast +
+                              mean, 0, 255).astype(np.uint8)
+
             # Random zoom (90% to 110%)
             if random.random() > 0.7:
                 zoom = random.uniform(0.9, 1.1)
@@ -127,36 +131,38 @@ class GestureDataGenerator(keras.utils.Sequence):
                     # Pad
                     pad_h = (h - new_h) // 2
                     pad_w = (w - new_w) // 2
-                    img = cv2.copyMakeBorder(img, pad_h, h-new_h-pad_h, pad_w, w-new_w-pad_w, cv2.BORDER_REPLICATE)
-        
+                    img = cv2.copyMakeBorder(
+                        img, pad_h, h-new_h-pad_h, pad_w, w-new_w-pad_w, cv2.BORDER_REPLICATE)
+
         # Apply CLAHE for better contrast
         img_lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         img_lab[:, :, 0] = clahe.apply(img_lab[:, :, 0])
         img = cv2.cvtColor(img_lab, cv2.COLOR_LAB2RGB)
-        
+
         # Normalize to [-1, 1] for MobileNetV3
         img = (img.astype(np.float32) / 127.5) - 1.0
-        
+
         return img
-    
+
     def _generate_batch(self, batch_paths, batch_labels):
         X = np.zeros((len(batch_paths), *self.img_size, 3), dtype=np.float32)
         y = np.zeros((len(batch_paths), len(CLASSES)), dtype=np.float32)
-        
+
         for i, (img_path, label) in enumerate(zip(batch_paths, batch_labels)):
             X[i] = self._load_and_preprocess(img_path)
             y[i, label] = 1.0
-        
+
         return X, y
-    
+
     def on_epoch_end(self):
         if self.shuffle:
             np.random.shuffle(self.indexes)
 
+
 def create_model(input_shape, num_classes):
     """Create optimized MobileNetV3Large model for maximum accuracy."""
-    
+
     # Base model with ImageNet weights
     base_model = MobileNetV3Large(
         include_top=False,
@@ -164,30 +170,34 @@ def create_model(input_shape, num_classes):
         input_shape=input_shape,
         include_preprocessing=False
     )
-    
+
     # Unfreeze last 60 layers for better fine-tuning
     for layer in base_model.layers[:-60]:
         layer.trainable = False
     for layer in base_model.layers[-60:]:
         layer.trainable = True
-    
+
     # Build enhanced model with BatchNorm
     inputs = layers.Input(shape=input_shape)
     x = base_model(inputs, training=True)
     x = layers.GlobalAveragePooling2D()(x)
     x = layers.BatchNormalization()(x)
-    x = layers.Dense(512, activation='relu', kernel_regularizer=keras.regularizers.l2(0.001))(x)
+    x = layers.Dense(512, activation='relu',
+                     kernel_regularizer=keras.regularizers.l2(0.001))(x)
     x = layers.Dropout(0.5)(x)
     x = layers.BatchNormalization()(x)
-    x = layers.Dense(256, activation='relu', kernel_regularizer=keras.regularizers.l2(0.001))(x)
+    x = layers.Dense(256, activation='relu',
+                     kernel_regularizer=keras.regularizers.l2(0.001))(x)
     x = layers.Dropout(0.4)(x)
-    x = layers.Dense(128, activation='relu', kernel_regularizer=keras.regularizers.l2(0.001))(x)
+    x = layers.Dense(128, activation='relu',
+                     kernel_regularizer=keras.regularizers.l2(0.001))(x)
     x = layers.Dropout(0.3)(x)
     outputs = layers.Dense(num_classes, activation='softmax')(x)
-    
+
     model = models.Model(inputs, outputs)
-    
+
     return model
+
 
 # Load dataset
 print("1. Loading LeapGestRecog dataset...")
@@ -197,20 +207,20 @@ all_labels = []
 # Scan directories
 for person_dir in sorted(DATASET_DIR.glob("[0-9][0-9]")):
     person_id = person_dir.name
-    
+
     for gesture_dir in person_dir.iterdir():
         if not gesture_dir.is_dir():
             continue
-        
+
         gesture_name = gesture_dir.name
-        
+
         # Check if this gesture is in our mapping
         if gesture_name not in GESTURE_MAPPING:
             continue
-        
+
         our_gesture = GESTURE_MAPPING[gesture_name]
         label = CLASSES.index(our_gesture)
-        
+
         # Get all images
         for img_file in gesture_dir.glob("*.png"):
             all_images.append(str(img_file))
@@ -223,7 +233,8 @@ for i, cls in enumerate(CLASSES):
     print(f"   {cls:15s}: {count:5d} images")
 
 # Split train/val
-print(f"\n2. Creating train/validation split ({int((1-VALIDATION_SPLIT)*100)}/{int(VALIDATION_SPLIT*100)})...")
+print(
+    f"\n2. Creating train/validation split ({int((1-VALIDATION_SPLIT)*100)}/{int(VALIDATION_SPLIT*100)})...")
 train_images, val_images, train_labels, val_labels = train_test_split(
     all_images, all_labels,
     test_size=VALIDATION_SPLIT,
@@ -264,7 +275,8 @@ optimizer = optimizers.Adam(learning_rate=LEARNING_RATE)
 model.compile(
     optimizer=optimizer,
     loss='categorical_crossentropy',
-    metrics=['accuracy', keras.metrics.TopKCategoricalAccuracy(k=2, name='top_2_accuracy')]
+    metrics=['accuracy', keras.metrics.TopKCategoricalAccuracy(
+        k=2, name='top_2_accuracy')]
 )
 
 print(f"   Total parameters: {model.count_params():,}")
@@ -296,7 +308,8 @@ callbacks_list = [
     ),
     # Learning rate warmup and decay
     callbacks.LearningRateScheduler(
-        lambda epoch: LEARNING_RATE * (0.95 ** epoch) if epoch > 5 else LEARNING_RATE * (epoch + 1) / 6,
+        lambda epoch: LEARNING_RATE *
+        (0.95 ** epoch) if epoch > 5 else LEARNING_RATE * (epoch + 1) / 6,
         verbose=0
     )
 ]

@@ -7,7 +7,8 @@ import csv
 from collections import Counter
 from pathlib import Path
 
-P = Path(__file__).resolve().parents[1] / 'datasets' / 'airline' / 'DelayedFlights.csv'
+P = Path(__file__).resolve().parents[1] / \
+    'datasets' / 'airline' / 'DelayedFlights.csv'
 
 
 def main():
@@ -23,17 +24,21 @@ def main():
 
         # find indices for useful columns
         lower = [c.lower() for c in header]
+
         def idx(names):
             for n in names:
                 if n in lower:
                     return lower.index(n)
             return None
 
-        arr_idx = idx(['arrdelay','arr_delay','arr_delay_minutes','arr_delay_minutes'])
-        dep_idx = idx(['depdelay','dep_delay','dep_delay_minutes'])
-        cancelled_idx = idx(['cancelled','is_cancelled','cancelled_flag'])
-        origin_idx = idx(['origin','originairport','originairportid','origincity'])
-        dest_idx = idx(['dest','destination','destairport','destairportid','destinationcity'])
+        arr_idx = idx(['arrdelay', 'arr_delay',
+                      'arr_delay_minutes', 'arr_delay_minutes'])
+        dep_idx = idx(['depdelay', 'dep_delay', 'dep_delay_minutes'])
+        cancelled_idx = idx(['cancelled', 'is_cancelled', 'cancelled_flag'])
+        origin_idx = idx(['origin', 'originairport',
+                         'originairportid', 'origincity'])
+        dest_idx = idx(['dest', 'destination', 'destairport',
+                       'destairportid', 'destinationcity'])
 
         counts = Counter()
         unique_origins = set()
@@ -61,7 +66,7 @@ def main():
             if cancelled_idx is not None:
                 try:
                     v = row[cancelled_idx]
-                    if v.strip() in ('1','True','true'):
+                    if v.strip() in ('1', 'True', 'true'):
                         counts['cancelled'] += 1
                 except Exception:
                     pass
