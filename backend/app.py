@@ -20,12 +20,11 @@ except Exception as e:
 import os
 import pandas as pd
 from pathlib import Path
-import random
 import numpy as np
 from fastapi import Request
 from typing import List, Dict, Any
 
-app = FastAPI(title="Jarvis TEC API")
+app = FastAPI(title="TravisTEC API")
 
 # Configurar CORS
 app.add_middleware(
@@ -56,7 +55,7 @@ class TextRequest(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"message": "Jarvis TEC API - Running"}
+    return {"message": "TravisTEC API - Running"}
 
 
 @app.post("/api/transcribe")
@@ -236,71 +235,25 @@ async def execute_command(payload: dict):
                 response_text = f"🎬 Error en recomendador: {str(e)}"
 
         elif task == 'bitcoin':
-            # Predicción Bitcoin - Proyección estadística desde precio base del dataset
+            # Predicción Bitcoin usando el modelo entrenado con features de precio en vivo
+            # (ModelRunner obtiene precios reales vía yfinance — fuente única de verdad).
             try:
                 years = float(params.get('years', params.get('days', 1)))
-                # convert years to days
                 horizon_days = int(years * 365)
 
-                # Load trained bitcoin model package
-                bm = model_runner.models.get('bitcoin_model')
-                if bm is None:
+                result = model_runner.predict(
+                    'bitcoin_model', params={'years': years})
+                pred = result.get('prediction') if isinstance(result, dict) else None
+                price_usd = float(pred[0]) if isinstance(pred, list) and pred else None
+                if price_usd is None:
                     return {"response": "₿ Bitcoin model not available on server"}
 
-                # bm may be a dict with 'model' and 'last_date'
-                if isinstance(bm, dict) and 'model' in bm:
-                    model_pkg = bm
-                else:
-                    # some saved formats store the model directly; handle both
-                    model_pkg = {'model': bm, 'last_date': None}
-
-                model_obj = model_pkg.get('model')
-                last_date = model_pkg.get('last_date')
-
-                # For features we will use a naive approach: use the most recent row from the dataset
-                btc_csv = Path(__file__).parent / 'datasets' / \
-                    'bitcoin' / 'bitcoin_price_Training - Training.csv'
-                if btc_csv.exists():
-                    df = pd.read_csv(btc_csv)
-                    # ensure numeric close
-                    price_col = next(
-                        (c for c in df.columns if 'close' in c.lower() or 'price' in c.lower()), 'Close')
-                    df['price'] = pd.to_numeric(df[price_col].str.replace(
-                        ',', ''), errors='coerce') if df[price_col].dtype == object else pd.to_numeric(df[price_col], errors='coerce')
-                    df['price_lag_1'] = df['price'].shift(1)
-                    df['price_lag_2'] = df['price'].shift(2)
-                    df['price_lag_3'] = df['price'].shift(3)
-                    df['price_lag_7'] = df['price'].shift(7)
-                    df['rolling_mean_7'] = df['price'].rolling(7).mean()
-                    df['rolling_mean_30'] = df['price'].rolling(30).mean()
-                    recent = df.dropna().iloc[-1]
-                    features = [recent['price_lag_1'], recent['price_lag_2'], recent['price_lag_3'],
-                                recent['price_lag_7'], recent['rolling_mean_7'], recent['rolling_mean_30'], horizon_days]
-                else:
-                    # fallback synthetic features
-                    features = [45000.0, 44900.0, 44850.0,
-                                44700.0, 44800.0, 45000.0, horizon_days]
-
-                X = np.array(features).reshape(1, -1)
-                pred = model_obj.predict(X)
-                price_usd = float(pred[0])
-
-                # Compute exact date if metadata present
-                target_date = None
-                if last_date is not None:
-                    try:
-                        if isinstance(last_date, str):
-                            ld = pd.to_datetime(last_date)
-                        else:
-                            ld = pd.to_datetime(last_date)
-                        target_date = (
-                            ld + pd.Timedelta(days=horizon_days)).date().isoformat()
-                    except Exception:
-                        target_date = None
+                # Con features en vivo, la fecha objetivo se calcula desde hoy.
+                from datetime import date, timedelta
+                target_date = (date.today() + timedelta(days=horizon_days)).isoformat()
 
                 response_text = f"₿ Bitcoin en {years} año(s): ${price_usd:,.2f} USD"
-                if target_date:
-                    response_text += f" | Fecha objetivo: {target_date}"
+                response_text += f" | Fecha objetivo: {target_date}"
             except Exception as e:
                 response_text = f"₿ Error: {str(e)}"
 
@@ -374,62 +327,39 @@ async def execute_command(payload: dict):
                 response_text = f"🚗 Error: {str(e)}"
 
         elif task == 'sp500':
-            # Predicción S&P 500 - Proyección estadística desde precio base del dataset
+            # Predicción S&P 500 usando el modelo entrenado con features de precio en vivo
+            # (ModelRunner obtiene ^GSPC vía yfinance).
             try:
-                days = params.get('days', params.get('years', 1))
-
-                # Leer precio actual del dataset
-                dataset_path = Path(__file__).parent / \
-                    'datasets' / 'all_stocks_5yr.csv'
-                base_price = 4500.0  # Precio fallback
-
-                if dataset_path.exists():
-                    df = pd.read_csv(dataset_path, nrows=1000)
-                    if 'close' in df.columns:
-                        try:
-                            base_price = float(df['close'].mean())
-                        except:
-                            base_price = 4500.0
-
-                # Proyección con crecimiento histórico del S&P
-                random.seed(int(days * 2718))  # Seed único
-
-                # -1% a +1.5% diario
-                daily_change = random.uniform(-0.01, 0.015)
-                projected_price = base_price * ((1 + daily_change) ** days)
-
-                response_text = f"📈 S&P 500 en {days} día{'s' if days != 1 else ''}: ${projected_price:,.2f}"
+                days = int(params.get('days', params.get('years', 1)))
+                result = model_runner.predict('sp500_model', params={'days': days})
+                pred = result.get('prediction') if isinstance(result, dict) else None
+                price = float(pred[0]) if isinstance(pred, list) and pred else None
+                if price is not None:
+                    response_text = f"📈 S&P 500 en {days} día{'s' if days != 1 else ''}: ${price:,.2f}"
+                else:
+                    response_text = f"📈 S&P 500: {result}"
             except Exception as e:
                 response_text = f"📈 Error: {str(e)}"
 
         elif task == 'avocado':
-            # Predicción aguacate - Proyección estadística desde precio base del dataset
+            # Predicción aguacate usando el modelo entrenado (features reales desde el dataset).
             try:
-                days = params.get('days', params.get('years', 1))
-
-                # Leer precio actual del dataset
-                dataset_path = Path(__file__).parent / \
-                    'datasets' / 'avocado.csv'
-                base_price = 1.40  # Precio fallback
-
-                if dataset_path.exists():
-                    df = pd.read_csv(dataset_path, nrows=100)
-                    price_col = next((col for col in df.columns if 'price' in col.lower(
-                    ) or 'averageprice' in col.lower()), None)
-                    if price_col:
-                        try:
-                            base_price = float(df[price_col].mean())
-                        except:
-                            base_price = 1.40
-
-                # Proyección con inflación leve
-                random.seed(int(days * 3141))  # Seed único
-
-                # -0.5% a +1% diario
-                daily_change = random.uniform(-0.005, 0.01)
-                projected_price = base_price * ((1 + daily_change) ** days)
-
-                response_text = f"🥑 Precio aguacate en {days} día{'s' if days != 1 else ''}: ${projected_price:.2f}"
+                # Acepta months | years | days y convierte a meses (horizonte del modelo).
+                if 'months' in params:
+                    months = int(float(params.get('months')))
+                elif 'years' in params:
+                    months = int(float(params.get('years')) * 12)
+                elif 'days' in params:
+                    months = max(1, int(float(params.get('days')) / 30))
+                else:
+                    months = 1
+                result = model_runner.predict('avocado_model', params={'months': months})
+                pred = result.get('prediction') if isinstance(result, dict) else None
+                price = float(pred[0]) if isinstance(pred, list) and pred else None
+                if price is not None:
+                    response_text = f"🥑 Precio aguacate en {months} mes(es): ${price:.2f}"
+                else:
+                    response_text = f"🥑 {result}"
             except Exception as e:
                 response_text = f"🥑 Error: {str(e)}"
 

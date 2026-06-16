@@ -9,11 +9,16 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.dummy import DummyRegressor
 from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.preprocessing import LabelEncoder
+import matplotlib; matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import joblib
 import calendar
+
+CHARTS_DIR = Path(__file__).resolve().parents[2] / 'docs' / 'charts'
 
 ROOT = Path(__file__).resolve().parents[1]
 CSV = ROOT / 'datasets' / 'london' / 'london_crime_by_lsoa.csv'
@@ -71,6 +76,26 @@ def train():
     mae = mean_absolute_error(y_test, preds)
     r2 = r2_score(y_test, preds)
     print(f'Test MAE: {mae:.3f}, R2: {r2:.3f}')
+
+    print('--- 5-fold Cross-Validation ---')
+    cv = cross_val_score(rf, X, y, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1)
+    base = cross_val_score(DummyRegressor(strategy='mean'), X, y, cv=5, scoring='neg_mean_absolute_error')
+    print(f'Model CV MAE : {-cv.mean():.3f} +/- {cv.std():.3f}')
+    print(f'Baseline MAE : {-base.mean():.3f} +/- {base.std():.3f}')
+
+    CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+    imp = rf.feature_importances_
+    idx = np.argsort(imp)[::-1]
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.bar(range(len(feature_cols)), imp[idx], color='steelblue')
+    ax.set_xticks(range(len(feature_cols)))
+    ax.set_xticklabels([feature_cols[i] for i in idx], rotation=45, ha='right', fontsize=9)
+    ax.set_title('Feature Importances — London Crime')
+    ax.set_ylabel('Importance')
+    plt.tight_layout()
+    plt.savefig(CHARTS_DIR / 'feature_importance_london_crime.png', dpi=150)
+    plt.close()
+    print('Saved docs/charts/feature_importance_london_crime.png')
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     pkg = {'model': rf, 'feature_cols': feature_cols, 'encoder': le_borough}

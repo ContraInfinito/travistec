@@ -1,97 +1,98 @@
-# Backend API — Model endpoints
+# TravisTEC — Backend
 
-This file documents the lightweight model endpoints added to the FastAPI backend so the frontend can call models directly.
+FastAPI service exposing the multimodal features (speech-to-text, emotion, gesture,
+image classification) and 10 ML prediction models. Entry point: [`app.py`](app.py).
 
-Base URL (when running locally): http://localhost:8000
+Base URL (local): `http://localhost:8000` · interactive docs at `/docs`.
 
-Endpoints
-
-- GET /api/v1/models
-  - Returns: {"models": ["bitcoin_model","car_price","movie_recommender", ...]}
-
-- POST /api/v1/models/{model_name}
-  - Generic predict endpoint. Accepts JSON:
-    - {"features": [..]}  OR
-    - {"params": {...}}
-  - Returns whatever ModelRunner.predict returns, typically: {"model":..., "input":..., "prediction": ...}
-
-- Convenience endpoints (wrap common models):
-  - POST /api/v1/predict/car  -> {"year":2015, "km":50000}
-  - POST /api/v1/predict/bitcoin -> {"years":1}
-  - POST /api/v1/predict/movie -> {"top_k":5, "genre":"Comedy", "year":1999}
-  - POST /api/v1/predict/bmi -> {"height":1.78, "weight":78, "age":30}
-  - POST /api/v1/predict/sp500 -> {"days":30}
-  - POST /api/v1/predict/avocado -> {"days":7}
-  - POST /api/v1/predict/london -> {"day":"viernes"}
-  - POST /api/v1/predict/chicago -> {"day":"viernes"}
-  - POST /api/v1/predict/cirrhosis -> pass medical params through
-  - POST /api/v1/predict/airline -> {"month":6, "day":15, "distance":500}
-
-Example JS (fetch) calls
-
-```javascript
-// Predict car price
-fetch('/api/v1/predict/car', {
-  method: 'POST',
-  headers: {'Content-Type': 'application/json'},
-  body: JSON.stringify({year:2015, km:50000})
-}).then(r=>r.json()).then(console.log)
-
-// Recommend movies
-fetch('/api/v1/predict/movie', {
-  method: 'POST',
-  headers: {'Content-Type': 'application/json'},
-  body: JSON.stringify({top_k:5, genre:'Drama', year:1994})
-}).then(r=>r.json()).then(console.log)
-
-// Generic model call
-fetch('/api/v1/models/movie_recommender', {
-  method: 'POST',
-  headers: {'Content-Type': 'application/json'},
-  body: JSON.stringify({params:{top_k:3, genre:'Comedy'}})
-}).then(r=>r.json()).then(console.log)
+```powershell
+cd backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python app.py
 ```
 
-Notes
-- Some saved models include metadata packages (e.g., bitcoin_model.joblib contains {'model', 'feature_cols', 'last_date'}). ModelRunner attempts to handle those formats.
-- If you update/retrain models, ensure they are saved in `backend/models/*.joblib` so the server loads them on start.
+All configuration is optional — see [`.env.example`](.env.example). With no `.env`,
+the service uses the local Whisper STT model and the DeepFace emotion detector.
 
-## Trained models (available)
+---
 
-The backend currently ships several trained models exposed via convenience endpoints. Use `GET /api/v1/models` to list them.
+## Services (`services/`)
 
-- `bitcoin_model` — POST `/api/v1/predict/bitcoin`
-  - Params: `years` or `days` (horizon). Example: `{ "years": 1 }`
-  - Response: model package with prediction and (if available) `last_date` used to compute the exact target date.
+| Module | Responsibility |
+|---|---|
+| `model_runner.py` | Loads `*.joblib` and Keras models from `models/`, exposes `predict()` / `run_model()`. Builds live features (yfinance) for Bitcoin/SP500. |
+| `stt_service.py` | Speech-to-text. `STT_SERVICE` selects `local_whisper` (default), `local_ctc`, or `azure`. |
+| `emotion_deepface.py` | Emotion detection via DeepFace, with a Haar-cascade smile-heuristic fallback. |
+| `emotion_local_onnx.py` | Alternative FER+ ONNX emotion detector. |
+| `gesture_classifier.py` | Hand-gesture classification (MobileNetV3Large, 5 classes). |
+| `gesture_mediapipe.py` | Alternative MediaPipe landmark detector. |
 
-- `car_price` — POST `/api/v1/predict/car`
-  - Params: `{ "year": 2015, "km": 50000 }`
-  - Response: dataset-unit price and optional conversions (rupees / USD if env vars set).
+---
 
-- `movie_recommender` — POST `/api/v1/predict/movie`
-  - Params: `{ "top_k": 5, "genre": "Drama", "year": 1994 }`
-  - Response: list of recommended movie titles.
+## Multimodal endpoints
 
-- `bmi_model` — POST `/api/v1/predict/bmi`
-  - Params: `{ "height": 1.78, "weight": 78, "age": 30 }`
-  - Response: predicted bodyfat (if model exists) or BMI formula fallback.
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| `GET`  | `/api/health` | — | `{status, services: {stt_service, model_runner, local_face_detector}}` |
+| `POST` | `/api/v1/transcribe` (alias `/api/transcribe`) | `audio` (multipart) | `{transcription}` |
+| `POST` | `/api/v1/face/sentiment` | `image` (multipart) | `{dominant_emotion, face_count, details}` |
+| `POST` | `/api/v1/classify/gesture` | `image` (multipart) | `{gesture, confidence, ...}` |
+| `POST` | `/api/v1/classify/image?model=<name>` | `image` (multipart) | classifier output (default: dog breeds) |
+| `POST` | `/api/v1/command/execute` | `{text, task, params}` | `{response}` — runs the model for `task` |
+| `POST` | `/api/process` | `{text}` | `{response}` — quick text→model mapping |
 
-- `sp500_model` — POST `/api/v1/predict/sp500`
-  - Params: `{ "days": 30 }` (or `years`)
-  - Response: projected S&P 500 value.
+---
 
-- `avocado_model` — POST `/api/v1/predict/avocado`
-  - Params: `{ "months": 3 }` (also accepts `days` or `years`, converted to months)
-  - Response: predicted avocado price and (if saved) `target_date` computed from the model package `last_date`.
+## Model endpoints
 
-- `airline_delay_model` — POST `/api/v1/predict/airline`
-  - Params (preferred): `{ "month": 6, "day": 15, "crs_dep_time": 900, "crs_arr_time": 1100, "crs_elapsed": 120, "distance": 500, "origin": "IAD", "dest": "TPA", "carrier": "WN" }`
-  - Response: `{ "model": "airline_delay_model", "input": {...}, "prediction": { "delayed": true, "probability": 0.67 } }`
-  - Metadata endpoint: `GET /api/v1/airline/metadata` returns lists of known `origins`, `dests`, and `carriers` (with best-effort full names for common codes).
+- `GET /api/v1/models` → `{"models": ["bitcoin_model", "car_price", ...]}`
+- `POST /api/v1/models/{model_name}` → generic predict; body `{"features":[...]}` **or** `{"params":{...}}`
+- Convenience wrappers (one per model):
 
-- `london_crime_model` — POST `/api/v1/predict/london`
-  - Params: `{ "month": 11, "day_of_week": 3, "borough": "Croydon" }` (day_of_week 1=Mon..7=Sun)
-  - Response: a predicted expected crimes per day (numeric). Example: `{"model":"london_crime_model","input":{...},"prediction":[12.3]}`
-  - Note: the training data is monthly by LSOA; the trainer converts to an average-per-day target so the model predicts expected crimes per day for a given borough/month/day_of_week.
+| Path | Example body | Notes |
+|---|---|---|
+| `POST /api/v1/predict/bitcoin` | `{ "years": 1 }` | Live BTC-USD features via yfinance; target date computed from today. |
+| `POST /api/v1/predict/sp500` | `{ "days": 30 }` | Live ^GSPC features. |
+| `POST /api/v1/predict/avocado` | `{ "months": 3 }` | Also accepts `days`/`years` (converted to months). Returns `target_date` if available. |
+| `POST /api/v1/predict/bmi` · `/api/v1/bmi` | `{ "height": 1.78, "weight": 78, "age": 30 }` | Falls back to the BMI formula if no model. |
+| `POST /api/v1/predict/car` | `{ "year": 2015, "km": 50000 }` | Returns dataset units + optional rupee/USD conversion. |
+| `POST /api/v1/predict/cirrhosis` | `{ "age": 50, "bilirubin": 1.5 }` | Decodes the predicted stage label if the encoder is saved. |
+| `POST /api/v1/predict/airline` | `{ "month": 6, "day": 15, "distance": 500, "origin": "IAD", "dest": "TPA", "carrier": "WN" }` | `{prediction: {delayed, probability}}`. |
+| `POST /api/v1/predict/london` | `{ "day": "viernes" }` | Expected crimes/day for a borough/day. |
+| `POST /api/v1/predict/chicago` | `{ "day": "viernes", "month": 11 }` | Expected incidents/day. |
+| `POST /api/v1/predict/movie` | `{ "top_k": 5, "genre": "Drama", "year": 1994 }` | List of recommended titles. |
 
-If you add more models, please update this README and save the artifact under `backend/models/` so the server picks it up automatically.
+### Metadata helpers
+
+- `GET /api/v1/meta/movies` → available genres & years
+- `GET /api/v1/meta/airports` → origins / destinations / carriers (from the dataset)
+- `GET /api/v1/airline/metadata` → airport & carrier codes with best-effort full names
+
+### Example (fetch)
+
+```javascript
+fetch('/api/v1/predict/car', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ year: 2015, km: 50000 })
+}).then(r => r.json()).then(console.log);
+```
+
+---
+
+## Training & evaluation
+
+Every supervised trainer in [`scripts/`](scripts) reports **5-fold cross-validation
+against a `Dummy` baseline** and writes a feature-importance chart to `../docs/charts/`.
+
+```powershell
+python scripts\train_bmi_model.py         # CV vs baseline + chart
+python scripts\run_model_smoke_tests.py   # load & exercise every saved model
+```
+
+Saved models live in `models/` (gitignored). The server loads whatever is present at
+startup and returns a clear error for any model that's missing — it never crashes on
+absence. Model packages may be plain estimators or dicts like
+`{'model', 'feature_cols', 'last_date', 'encoders'}`; `ModelRunner` handles both.

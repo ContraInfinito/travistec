@@ -5,10 +5,15 @@ Uses historical Bitcoin price data to train a regression model.
 import pandas as pd
 from pathlib import Path
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.dummy import DummyRegressor
 from sklearn.metrics import mean_absolute_error, r2_score
+import matplotlib; matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import joblib
 import numpy as np
+
+CHARTS_DIR = Path(__file__).parent.parent.parent / 'docs' / 'charts'
 
 # The repo provides CSV files under datasets/bitcoin
 DATA = Path(__file__).parent.parent / 'datasets' / 'bitcoin' / 'bitcoin_price_Training - Training.csv'
@@ -91,7 +96,27 @@ def main():
     print(f'Test MAE: ${mae:.2f}')
     print(f'R2 Score: {r2:.4f}')
     print(f'Mean price: ${y_test.mean():.2f}')
-    
+
+    print('--- 5-fold Cross-Validation ---')
+    cv = cross_val_score(model, X, y, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1)
+    base = cross_val_score(DummyRegressor(strategy='mean'), X, y, cv=5, scoring='neg_mean_absolute_error')
+    print(f'Model CV MAE : ${-cv.mean():.2f} +/- {cv.std():.2f}')
+    print(f'Baseline MAE : ${-base.mean():.2f} +/- {base.std():.2f}')
+
+    CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+    imp = model.feature_importances_
+    idx = np.argsort(imp)[::-1]
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.bar(range(len(feature_cols)), imp[idx], color='steelblue')
+    ax.set_xticks(range(len(feature_cols)))
+    ax.set_xticklabels([feature_cols[i] for i in idx], rotation=45, ha='right', fontsize=9)
+    ax.set_title('Feature Importances — Bitcoin Price')
+    ax.set_ylabel('Importance')
+    plt.tight_layout()
+    plt.savefig(CHARTS_DIR / 'feature_importance_bitcoin.png', dpi=150)
+    plt.close()
+    print('Saved docs/charts/feature_importance_bitcoin.png')
+
     MODEL_OUT.parent.mkdir(parents=True, exist_ok=True)
     # Save model with metadata: include last date from original df
     last_date = pd.to_datetime(df['Date'].iloc[-1]) if 'Date' in df.columns else None

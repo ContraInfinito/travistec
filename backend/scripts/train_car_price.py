@@ -2,9 +2,14 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.dummy import DummyRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+import matplotlib; matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import joblib
+
+CHARTS_DIR = Path(__file__).parent.parent.parent / 'docs' / 'charts'
 
 
 def encode_fuel(x: str) -> int:
@@ -80,8 +85,30 @@ def main():
     rmse_train = mean_squared_error(y_train, y_pred_train) ** 0.5
     rmse_test = mean_squared_error(y_test, y_pred_test) ** 0.5
 
+    mae_test = mean_absolute_error(y_test, y_pred_test)
     print(f"Train RMSE: {rmse_train:.4f}")
     print(f"Test  RMSE: {rmse_test:.4f}")
+    print(f"Test  MAE : {mae_test:.4f}")
+
+    print('--- 5-fold Cross-Validation ---')
+    cv = cross_val_score(model, X, y, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1)
+    base = cross_val_score(DummyRegressor(strategy='mean'), X, y, cv=5, scoring='neg_mean_absolute_error')
+    print(f'Model CV MAE : {-cv.mean():.4f} +/- {cv.std():.4f}')
+    print(f'Baseline MAE : {-base.mean():.4f} +/- {base.std():.4f}')
+
+    CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+    imp = model.feature_importances_
+    idx = np.argsort(imp)[::-1]
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.bar(range(len(feature_cols)), imp[idx], color='steelblue')
+    ax.set_xticks(range(len(feature_cols)))
+    ax.set_xticklabels([feature_cols[i] for i in idx], rotation=45, ha='right', fontsize=9)
+    ax.set_title('Feature Importances — Car Price')
+    ax.set_ylabel('Importance')
+    plt.tight_layout()
+    plt.savefig(CHARTS_DIR / 'feature_importance_car.png', dpi=150)
+    plt.close()
+    print('Saved docs/charts/feature_importance_car.png')
 
     # Save model to backend/models/car_price.joblib
     out_path = models_dir / 'car_price.joblib'

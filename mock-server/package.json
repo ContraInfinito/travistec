@@ -1,7 +1,7 @@
 {
   "name": "mock-server",
   "version": "1.0.0",
-  "description": "Mock server for Jarvis TEC API",
+  "description": "Mock server for TravisTEC API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

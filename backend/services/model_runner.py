@@ -4,7 +4,19 @@ import joblib
 import numpy as np
 import traceback
 import random
-from typing import List, Dict, Any, Optional
+import time
+from datetime import datetime, timezone
+from typing import List, Dict, Any, Optional, Tuple
+
+try:
+    import yfinance as yf
+    _YFINANCE_AVAILABLE = True
+except ImportError:
+    _YFINANCE_AVAILABLE = False
+
+# (ticker -> (features_list, fetched_at_unix_timestamp))
+_PRICE_CACHE: Dict[str, Tuple[list, float]] = {}
+_CACHE_TTL = 3600  # 1 hour
 try:
     import tensorflow as tf
     import keras
@@ -24,6 +36,155 @@ ALIASES = {
 # Hardcoded classes for dog model
 DOG_CLASSES = ['french_bulldog', 'german_shepherd',
                'golden_retriever', 'poodle', 'yorkshire_terrier']
+
+
+def _fetch_bitcoin_features(horizon_days: int) -> Tuple[list, bool]:
+    """Return (feature_list, is_live) for bitcoin_model.
+    Features: price_lag_1/2/3/7, rolling_mean_7, rolling_mean_30, horizon_days.
+    Falls back to last cached prices if yfinance is unavailable."""
+    cache_key = "BTC-USD"
+    now = time.time()
+    cached = _PRICE_CACHE.get(cache_key)
+    if cached and (now - cached[1]) < _CACHE_TTL:
+        feats, _ = cached
+        return feats[:-1] + [float(horizon_days)], True
+
+    if not _YFINANCE_AVAILABLE:
+        return _bitcoin_fallback(horizon_days), False
+
+    try:
+        df = yf.download(cache_key, period="45d", interval="1d", progress=False, auto_adjust=True)
+        if df is None or len(df) < 10:
+            raise ValueError("insufficient data")
+        closes = df["Close"].dropna()
+        p = closes.iloc[-1]
+        features = [
+            float(closes.iloc[-1]),   # lag_1 (most recent close)
+            float(closes.iloc[-2]),   # lag_2
+            float(closes.iloc[-3]),   # lag_3
+            float(closes.iloc[-7]),   # lag_7
+            float(closes.iloc[-7:].mean()),    # rolling_mean_7
+            float(closes.iloc[-30:].mean()),   # rolling_mean_30
+            float(horizon_days),
+        ]
+        _PRICE_CACHE[cache_key] = (features, now)
+        return features, True
+    except Exception as e:
+        print(f"[ModelRunner] yfinance BTC fetch failed: {e}. Using cached/fallback.")
+        if cached:
+            feats, _ = cached
+            return feats[:-1] + [float(horizon_days)], False
+        return _bitcoin_fallback(horizon_days), False
+
+
+def _bitcoin_fallback(horizon_days: int) -> list:
+    """Last-resort static fallback — clearly labelled as estimate, not live."""
+    base = 65000.0
+    return [base, base * 0.998, base * 0.997, base * 0.993,
+            base * 0.999, base * 0.996, float(horizon_days)]
+
+
+def _fetch_sp500_features(horizon_days: int) -> Tuple[list, bool]:
+    """Return (feature_list, is_live) for sp500_model.
+    Features: open, high, low, volume, price_change, high_low_diff,
+              close_lag_1/5/10, rolling_mean_5/20, horizon_days."""
+    cache_key = "^GSPC"
+    now = time.time()
+    cached = _PRICE_CACHE.get(cache_key)
+    if cached and (now - cached[1]) < _CACHE_TTL:
+        feats, _ = cached
+        return feats[:-1] + [float(horizon_days)], True
+
+    if not _YFINANCE_AVAILABLE:
+        return _sp500_fallback(horizon_days), False
+
+    try:
+        df = yf.download(cache_key, period="45d", interval="1d", progress=False, auto_adjust=True)
+        if df is None or len(df) < 10:
+            raise ValueError("insufficient data")
+        row = df.iloc[-1]
+        closes = df["Close"].dropna()
+        features = [
+            float(row["Open"]),
+            float(row["High"]),
+            float(row["Low"]),
+            float(row["Volume"]),
+            float(row["Close"] - row["Open"]),          # price_change
+            float(row["High"] - row["Low"]),             # high_low_diff
+            float(closes.iloc[-1]),                       # close_lag_1
+            float(closes.iloc[-5]),                       # close_lag_5
+            float(closes.iloc[-10]),                      # close_lag_10
+            float(closes.iloc[-5:].mean()),               # rolling_mean_5
+            float(closes.iloc[-20:].mean()),              # rolling_mean_20
+            float(horizon_days),
+        ]
+        _PRICE_CACHE[cache_key] = (features, now)
+        return features, True
+    except Exception as e:
+        print(f"[ModelRunner] yfinance SP500 fetch failed: {e}. Using cached/fallback.")
+        if cached:
+            feats, _ = cached
+            return feats[:-1] + [float(horizon_days)], False
+        return _sp500_fallback(horizon_days), False
+
+
+def _sp500_fallback(horizon_days: int) -> list:
+    base = 5300.0
+    return [base, base * 1.004, base * 0.996, 3_500_000_000,
+            0.0, base * 0.008, base, base * 0.997, base * 0.994,
+            base * 0.999, base * 0.998, float(horizon_days)]
+
+
+_AVOCADO_CACHE: Optional[dict] = None
+
+def _fetch_avocado_features(horizon_months: int) -> list:
+    """Build inference features from real dataset history instead of seeded noise.
+    Uses the last 4 months of mean conventional avocado prices across all regions."""
+    global _AVOCADO_CACHE
+    if _AVOCADO_CACHE is None:
+        try:
+            import pandas as pd
+            dataset_path = os.path.join(os.path.dirname(__file__), "..", "datasets", "avocado", "avocado.csv")
+            df = pd.read_csv(dataset_path, parse_dates=["Date"])
+            df = df[df["type"] == "conventional"]
+            df["month"] = df["Date"].dt.to_period("M").dt.to_timestamp()
+            monthly = df.groupby("month").agg({
+                "AveragePrice": "mean",
+                "Total Volume": "sum",
+                "4046": "sum", "4225": "sum", "4770": "sum",
+                "Total Bags": "sum", "Small Bags": "sum",
+                "Large Bags": "sum", "XLarge Bags": "sum",
+            }).sort_index()
+            prices = monthly["AveragePrice"]
+            _AVOCADO_CACHE = {
+                "avg_price": float(prices.iloc[-1]),
+                "total_volume": float(monthly["Total Volume"].iloc[-1]),
+                "v_4046": float(monthly["4046"].iloc[-1]),
+                "v_4225": float(monthly["4225"].iloc[-1]),
+                "v_4770": float(monthly["4770"].iloc[-1]),
+                "total_bags": float(monthly["Total Bags"].iloc[-1]),
+                "small_bags": float(monthly["Small Bags"].iloc[-1]),
+                "large_bags": float(monthly["Large Bags"].iloc[-1]),
+                "xlarge_bags": float(monthly["XLarge Bags"].iloc[-1]),
+                "lag_1": float(prices.iloc[-2]) if len(prices) >= 2 else float(prices.iloc[-1]),
+                "lag_3": float(prices.iloc[-4]) if len(prices) >= 4 else float(prices.iloc[-1]),
+                "rolling_3": float(prices.iloc[-3:].mean()),
+            }
+        except Exception as e:
+            print(f"[ModelRunner] Could not load avocado dataset: {e}. Using fallback.")
+            _AVOCADO_CACHE = {
+                "avg_price": 1.5, "total_volume": 100000.0,
+                "v_4046": 50000.0, "v_4225": 30000.0, "v_4770": 10000.0,
+                "total_bags": 5000.0, "small_bags": 4000.0,
+                "large_bags": 800.0, "xlarge_bags": 200.0,
+                "lag_1": 1.49, "lag_3": 1.47, "rolling_3": 1.49,
+            }
+    c = _AVOCADO_CACHE
+    return [
+        c["avg_price"], c["total_volume"], c["v_4046"], c["v_4225"], c["v_4770"],
+        c["total_bags"], c["small_bags"], c["large_bags"], c["xlarge_bags"],
+        c["lag_1"], c["lag_3"], c["rolling_3"], float(horizon_months),
+    ]
 
 
 class ModelRunner:
@@ -147,23 +308,10 @@ class ModelRunner:
                     except Exception:
                         horizon_days = 1
 
-                # Precio base más realista
-                # Seed único por día
-                random.seed(int(max(1, horizon_days) * 137))
-                # Variación diaria ~$50-150
-                base_price = 45000.0 + (horizon_days * random.uniform(50, 150))
-                volatility = random.uniform(
-                    0.97, 1.03)  # ±3% volatilidad diaria
-                # Return 7 features matching training: 6 price-derived features + horizon_days
-                return [
-                    base_price * volatility,
-                    base_price * 0.998 * volatility,
-                    base_price * 0.997 * volatility,
-                    base_price * 0.995 * volatility,
-                    base_price * 0.999 * volatility,
-                    base_price * 1.001 * volatility,
-                    float(horizon_days)
-                ]
+                features, is_live = _fetch_bitcoin_features(horizon_days)
+                if not is_live:
+                    print("[ModelRunner] WARNING: Bitcoin features from fallback/cache — not live market data.")
+                return features
             if m in ("sp500_model",):
                 # SP500 - Predicción a CORTO PLAZO (días)
                 # Features: open, high, low, volume, price_change, high_low_diff, close_lag_1, close_lag_5, close_lag_10, rolling_mean_5, rolling_mean_20
@@ -184,26 +332,10 @@ class ModelRunner:
                     except Exception:
                         horizon_days = 1
 
-                # Seed único por día
-                random.seed(int(max(1, horizon_days) * 271))
-                # Variación diaria ~$5-20
-                base = 4500.0 + (horizon_days * random.uniform(5, 20))
-                vol_factor = random.uniform(0.98, 1.02)  # ±2% volatilidad
-                # Return 12 features: the 11 price/volume features plus horizon_days
-                return [
-                    base * vol_factor,
-                    base * 1.005 * vol_factor,
-                    base * 0.995 * vol_factor,
-                    5000000 + int(horizon_days * 50000),
-                    random.uniform(-20, 20),
-                    random.uniform(10, 30),
-                    base * 0.999 * vol_factor,
-                    base * 0.997 * vol_factor,
-                    base * 0.995 * vol_factor,
-                    base * vol_factor,
-                    base * 1.002 * vol_factor,
-                    float(horizon_days)
-                ]
+                features, is_live = _fetch_sp500_features(horizon_days)
+                if not is_live:
+                    print("[ModelRunner] WARNING: SP500 features from fallback/cache — not live market data.")
+                return features
             if m in ("avocado_model", "avocado_price"):
                 # Avocado - Predicción a CORTO PLAZO (months)
                 # Features: Total Volume, 4046, 4225, 4770, Total Bags, Small Bags, Large Bags, XLarge Bags,
@@ -229,43 +361,7 @@ class ModelRunner:
                 except Exception:
                     horizon_months = 1
 
-                # Seed único por mes
-                random.seed(int(max(1, horizon_months) * 181))
-                year_value = 2025  # Año actual
-                # Small variations by months
-                vol_factor = 1.0 + (horizon_months * 0.01 *
-                                    random.uniform(0.95, 1.05))
-                # Build realistic-looking features matching trainer feature_cols:
-                # ['avg_price','total_volume','v_4046','v_4225','v_4770','total_bags','small_bags','large_bags','xlarge_bags','lag_1','lag_3','rolling_3','horizon_months']
-                avg_price = 1.5 * vol_factor
-                total_volume = 100000 * vol_factor
-                v_4046 = 50000 * vol_factor
-                v_4225 = 30000 * vol_factor
-                v_4770 = 10000 * vol_factor
-                total_bags = 5000 * vol_factor
-                small_bags = 4000 * vol_factor
-                large_bags = 800 * vol_factor
-                xlarge_bags = 200 * vol_factor
-                # lag features derived from avg_price
-                lag_1 = avg_price * 0.99
-                lag_3 = avg_price * 0.97
-                rolling_3 = (avg_price * 0.99 + avg_price *
-                             0.98 + avg_price * 1.0) / 3.0
-                return [
-                    avg_price,
-                    total_volume,
-                    v_4046,
-                    v_4225,
-                    v_4770,
-                    total_bags,
-                    small_bags,
-                    large_bags,
-                    xlarge_bags,
-                    lag_1,
-                    lag_3,
-                    rolling_3,
-                    float(horizon_months)
-                ]
+                return _fetch_avocado_features(horizon_months)
             if m in ("london_crime", "london_crime_model"):
                 # London model expects ['month','day_of_week','borough_le']
                 dow = params.get("day_of_week", params.get("day"))

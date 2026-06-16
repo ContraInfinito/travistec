@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── 1. Backend lint ────────────────────────────────────────────────────────
+  lint-backend:
+    name: Lint backend (flake8)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install flake8
+        run: pip install flake8
+
+      - name: Run flake8
+        run: |
+          flake8 backend/ \
+            --max-line-length=120 \
+            --exclude=backend/datasets,backend/models \
+            --extend-ignore=E302,E303,E501,W503,W504,W605,F401,E711,E722,E741 \
+            --count --statistics
+
+  # ── 2. Model smoke tests ───────────────────────────────────────────────────
+  model-smoke-tests:
+    name: Model smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ML dependencies (no TensorFlow)
+        run: pip install joblib numpy pandas scikit-learn
+
+      - name: Run smoke tests
+        run: |
+          python backend/scripts/run_model_smoke_tests.py > smoke_out.json
+          cat smoke_out.json
+          # Fail only if a present model fails to load or predict — missing is OK in CI
+          python - <<'EOF'
+          import json, sys
+          with open("smoke_out.json") as f:
+              results = json.load(f)
+          failures = [r for r in results if r.get("status") not in ("ok", "missing_model_file")]
+          present  = [r for r in results if r.get("status") == "ok"]
+          missing  = [r for r in results if r.get("status") == "missing_model_file"]
+          print(f"OK: {len(present)}  |  Missing (expected in CI): {len(missing)}  |  Failed: {len(failures)}")
+          if failures:
+              print("FAILURES:")
+              for f in failures:
+                  print(f"  {f['model']}: {f.get('status')} — {f.get('error','')}")
+              sys.exit(1)
+          EOF
+
+      - name: Verify training scripts parse cleanly
+        run: |
+          python - <<'EOF'
+          import ast, pathlib, sys
+          scripts = list(pathlib.Path("backend/scripts").glob("train_*.py"))
+          errors = []
+          for s in scripts:
+              try:
+                  ast.parse(s.read_text(encoding="utf-8"))
+              except SyntaxError as e:
+                  errors.append(f"{s.name}: {e}")
+          if errors:
+              for e in errors:
+                  print("SYNTAX ERROR:", e)
+              sys.exit(1)
+          print(f"All {len(scripts)} training scripts parsed OK")
+          EOF
+
+  # ── 3. Frontend lint ───────────────────────────────────────────────────────
+  lint-frontend:
+    name: Lint frontend (ESLint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend-react/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend-react
+
+      - name: Run ESLint
+        run: npm run lint
+        working-directory: frontend-react

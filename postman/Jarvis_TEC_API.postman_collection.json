@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "Jarvis TEC API",
-    "description": "Colección completa de endpoints para Jarvis TEC - Asistente inteligente con reconocimiento facial y procesamiento de voz",
+    "name": "TravisTEC API",
+    "description": "Colección completa de endpoints para TravisTEC - Asistente multimodal con voz, gestos, emociones y modelos de predicción ML",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "version": "1.0.0"
   },

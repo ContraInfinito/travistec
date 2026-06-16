@@ -8,10 +8,15 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.dummy import DummyClassifier
 from sklearn.metrics import accuracy_score, roc_auc_score, precision_score, recall_score
 from sklearn.preprocessing import LabelEncoder
+import matplotlib; matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import joblib
+
+CHARTS_DIR = Path(__file__).parent.parent.parent / 'docs' / 'charts'
 
 ROOT = Path(__file__).resolve().parents[1]
 CSV = ROOT / 'datasets' / 'airline' / 'DelayedFlights.csv'
@@ -96,6 +101,26 @@ def train():
     prec = precision_score(y_test, preds)
     rec = recall_score(y_test, preds)
     print(f'Accuracy: {acc:.4f}, AUC: {auc:.4f}, Precision: {prec:.4f}, Recall: {rec:.4f}')
+
+    print('--- 5-fold Cross-Validation ---')
+    cv = cross_val_score(clf, X, y, cv=5, scoring='accuracy', n_jobs=-1)
+    base = cross_val_score(DummyClassifier(strategy='most_frequent'), X, y, cv=5, scoring='accuracy')
+    print(f'Model CV Accuracy : {cv.mean():.4f} +/- {cv.std():.4f}')
+    print(f'Baseline Accuracy : {base.mean():.4f} +/- {base.std():.4f}')
+
+    CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+    imp = clf.feature_importances_
+    idx = np.argsort(imp)[::-1]
+    fig, ax = plt.subplots(figsize=(12, 5))
+    ax.bar(range(len(feature_cols)), imp[idx], color='steelblue')
+    ax.set_xticks(range(len(feature_cols)))
+    ax.set_xticklabels([feature_cols[i] for i in idx], rotation=45, ha='right', fontsize=9)
+    ax.set_title('Feature Importances — Airline Delay')
+    ax.set_ylabel('Importance')
+    plt.tight_layout()
+    plt.savefig(CHARTS_DIR / 'feature_importance_airline.png', dpi=150)
+    plt.close()
+    print('Saved docs/charts/feature_importance_airline.png')
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     last_date = None

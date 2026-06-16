@@ -6,10 +6,15 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.dummy import DummyClassifier
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import accuracy_score, f1_score, classification_report
+import matplotlib; matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import joblib
+
+CHARTS_DIR = Path(__file__).resolve().parents[2] / 'docs' / 'charts'
 
 ROOT = Path(__file__).resolve().parents[1]
 CSV = ROOT / 'datasets' / 'cirrosis' / 'cirrhosis.csv'
@@ -97,6 +102,26 @@ def train():
     print(f'Accuracy: {acc:.4f}, F1(macro): {f1:.4f}')
     print('Classification report:')
     print(classification_report(y_test, preds, target_names=le_target.classes_))
+
+    print('--- 5-fold Cross-Validation ---')
+    cv = cross_val_score(clf, X, y_enc, cv=5, scoring='accuracy', n_jobs=-1)
+    base = cross_val_score(DummyClassifier(strategy='most_frequent'), X, y_enc, cv=5, scoring='accuracy')
+    print(f'Model CV Accuracy : {cv.mean():.4f} +/- {cv.std():.4f}')
+    print(f'Baseline Accuracy : {base.mean():.4f} +/- {base.std():.4f}')
+
+    CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+    imp = clf.feature_importances_
+    idx = np.argsort(imp)[::-1]
+    fig, ax = plt.subplots(figsize=(12, 5))
+    ax.bar(range(len(feature_cols)), imp[idx], color='steelblue')
+    ax.set_xticks(range(len(feature_cols)))
+    ax.set_xticklabels([feature_cols[i] for i in idx], rotation=45, ha='right', fontsize=9)
+    ax.set_title('Feature Importances — Cirrhosis Stage')
+    ax.set_ylabel('Importance')
+    plt.tight_layout()
+    plt.savefig(CHARTS_DIR / 'feature_importance_cirrhosis.png', dpi=150)
+    plt.close()
+    print('Saved docs/charts/feature_importance_cirrhosis.png')
 
     pkg = {
         'model': clf,

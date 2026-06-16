@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Backend real con ML y Azure
+  # Backend: FastAPI + ML models
   backend:
     build:
       context: ./backend
@@ -9,17 +9,19 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - AZURE_FACE_KEY=${AZURE_FACE_KEY}
-      - AZURE_FACE_ENDPOINT=${AZURE_FACE_ENDPOINT}
-      - AZURE_SPEECH_KEY=${AZURE_SPEECH_KEY}
-      - AZURE_SERVICE_REGION=${AZURE_SERVICE_REGION}
-      - STT_SERVICE=${STT_SERVICE:-azure}
+      # STT backend: local_whisper (default) | local_ctc | azure
+      - STT_SERVICE=${STT_SERVICE:-local_whisper}
+      # Only used when STT_SERVICE=azure
+      - AZURE_SPEECH_KEY=${AZURE_SPEECH_KEY:-}
+      - AZURE_SERVICE_REGION=${AZURE_SERVICE_REGION:-}
+      # DeepFace face-detector backend
+      - EMOTION_DETECTOR_BACKEND=${EMOTION_DETECTOR_BACKEND:-opencv}
     volumes:
       - ./backend:/app
       - ./backend/models:/app/models
     command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
     networks:
-      - jarvis-network
+      - travistec-network
 
   # Frontend React
   frontend:
@@ -36,12 +38,12 @@ services:
       - VITE_USE_MOCK=false
       - VITE_MOCK_API_URL=http://localhost:3001
     networks:
-      - jarvis-network
+      - travistec-network
     depends_on:
       - backend
       - mock-server
 
-  # Mock Server para desarrollo/testing
+  # Mock server for frontend-only development/testing
   mock-server:
     build:
       context: ./mock-server
@@ -52,27 +54,26 @@ services:
       - ./mock-server:/app
       - /app/node_modules
     networks:
-      - jarvis-network
+      - travistec-network
     command: npm start
 
-  # Base de datos stub (PostgreSQL para futuras features)
+  # PostgreSQL stub (placeholder for future features)
   db-stub:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_USER=jarvis
-      - POSTGRES_PASSWORD=jarvis123
-      - POSTGRES_DB=jarvis_db
+      - POSTGRES_USER=travistec
+      - POSTGRES_PASSWORD=travistec123
+      - POSTGRES_DB=travistec_db
     ports:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     networks:
-      - jarvis-network
+      - travistec-network
 
 networks:
-  jarvis-network:
+  travistec-network:
     driver: bridge
 
 volumes:
   db-data:
-

@@ -5,6 +5,14 @@ import librosa
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+from sklearn.model_selection import train_test_split as sklearn_split
+
+try:
+    import jiwer
+    JIWER_AVAILABLE = True
+except ImportError:
+    JIWER_AVAILABLE = False
+    print("jiwer not installed — WER metric will be skipped. Run: pip install jiwer")
 
 # --- Configuration ---
 DATASET_PATH = os.path.join(os.path.dirname(__file__), "../datasets/audio")
@@ -156,6 +164,66 @@ def build_model(input_dim, output_dim):
     model = keras.models.Model(inputs=input_spectrogram, outputs=x, name="Audio_CTC_Model")
     return model
 
+def _split_data(df, val_size=0.2, random_state=42):
+    """80/20 train/val split, stratified by transcript where class sizes allow."""
+    try:
+        train_df, val_df = sklearn_split(
+            df, test_size=val_size, random_state=random_state,
+            stratify=df['transcript']
+        )
+    except ValueError:
+        # Fallback when some classes have only 1 sample
+        train_df, val_df = sklearn_split(df, test_size=val_size, random_state=random_state)
+    return train_df.reset_index(drop=True), val_df.reset_index(drop=True)
+
+
+def _greedy_ctc_decode(logits, blank_idx):
+    """Greedy CTC decode: collapse consecutive repeats, then strip blanks."""
+    indices = np.argmax(logits, axis=-1)
+    prev, result = None, []
+    for idx in indices:
+        if idx != prev:
+            result.append(int(idx))
+            prev = int(idx)
+    return [i for i in result if i != blank_idx]
+
+
+class WERCallback(keras.callbacks.Callback):
+    """Computes Word Error Rate on the validation set every N epochs."""
+
+    def __init__(self, val_df, num_to_char, vocab_size, every_n=5):
+        super().__init__()
+        self.val_df = val_df
+        self.num_to_char = num_to_char
+        self.blank_idx = vocab_size  # Dense outputs vocab_size+1 values; blank is last
+        self.every_n = every_n
+
+    def on_epoch_end(self, epoch, logs=None):
+        if (epoch + 1) % self.every_n != 0:
+            return
+        refs, hyps = [], []
+        for _, row in self.val_df.iterrows():
+            wav_path = os.path.join(WAVS_PATH, str(row['filename']))
+            spec = process_audio(wav_path)
+            spec_t = tf.expand_dims(tf.constant(spec, dtype=tf.float32), 0)
+            logits = self.model(spec_t, training=False)[0].numpy()
+            decoded = _greedy_ctc_decode(logits, self.blank_idx)
+            if decoded:
+                chars = self.num_to_char(tf.constant(decoded, dtype=tf.int64)).numpy()
+                hyp = "".join(c.decode('utf-8') if isinstance(c, bytes) else c for c in chars)
+            else:
+                hyp = ""
+            refs.append(row['transcript'].lower())
+            hyps.append(hyp)
+
+        if JIWER_AVAILABLE and refs:
+            wer_score = jiwer.wer(refs, hyps)
+            if logs is not None:
+                logs['val_wer'] = wer_score
+            print(f"\n  [WER epoch {epoch+1}] val_wer={wer_score:.4f}  "
+                  f"(refs: {refs[:3]}, hyps: {hyps[:3]})")
+
+
 def main():
     print("--- Starting Audio CTC Training ---")
     
@@ -177,9 +245,13 @@ def main():
     char_to_num = layers.StringLookup(vocabulary=unique_chars, mask_token='')
     num_to_char = layers.StringLookup(vocabulary=char_to_num.get_vocabulary(), mask_token='', invert=True)
     
-    # 3. Prepare Dataset
-    dataset = create_dataset(df, char_to_num)
-    
+    # 3. Split and prepare datasets (80/20 train/val)
+    train_df, val_df = _split_data(df, val_size=0.2)
+    print(f"Split: {len(train_df)} train / {len(val_df)} val samples")
+
+    train_dataset = create_dataset(train_df, char_to_num)
+    val_dataset = create_dataset(val_df, char_to_num)
+
     # 4. Build Model
     # Input dim is FFT_LENGTH // 2 + 1 (frequency bins)
     input_dim = FFT_LENGTH // 2 + 1
@@ -193,44 +265,84 @@ def main():
     model.compile(optimizer=opt, loss=CTCLoss)
     
     # 6. Train
-    print("Starting training (Full Dataset - High Capacity)...")
-    
-    # Callbacks for better training
+    print("Starting training (80/20 train/val split)...")
+
+    # Baseline WER before any training
+    if JIWER_AVAILABLE:
+        print("Computing baseline WER (untrained model)...")
+        refs_base, hyps_base = [], []
+        for _, row in val_df.iterrows():
+            wav_path = os.path.join(WAVS_PATH, str(row['filename']))
+            spec = process_audio(wav_path)
+            spec_t = tf.expand_dims(tf.constant(spec, dtype=tf.float32), 0)
+            logits = model(spec_t, training=False)[0].numpy()
+            decoded = _greedy_ctc_decode(logits, vocab_size)
+            chars = num_to_char(tf.constant(decoded, dtype=tf.int64)).numpy() if decoded else []
+            hyp = "".join(c.decode('utf-8') if isinstance(c, bytes) else c for c in chars)
+            refs_base.append(row['transcript'].lower())
+            hyps_base.append(hyp)
+        baseline_wer = jiwer.wer(refs_base, hyps_base)
+        print(f"Baseline WER (untrained): {baseline_wer:.4f}")
+
     callbacks = [
         keras.callbacks.ModelCheckpoint(
             filepath=MODEL_SAVE_PATH,
-            monitor="loss",
+            monitor="val_loss",
             save_best_only=True,
             save_weights_only=False,
             verbose=1
         ),
         keras.callbacks.ReduceLROnPlateau(
-            monitor="loss",
+            monitor="val_loss",
             factor=0.5,
             patience=10,
             min_lr=1e-6,
             verbose=1
         ),
         keras.callbacks.EarlyStopping(
-            monitor="loss",
+            monitor="val_loss",
             patience=20,
             restore_best_weights=True,
             verbose=1
-        )
+        ),
+        WERCallback(val_df, num_to_char, vocab_size, every_n=5),
     ]
-    
-    # Train on the full dataset for 200 epochs
-    history = model.fit(dataset, epochs=200, callbacks=callbacks)
+
+    history = model.fit(
+        train_dataset,
+        epochs=200,
+        validation_data=val_dataset,
+        callbacks=callbacks,
+    )
     
     # 7. Save (Final save just in case)
     print(f"Saving final model to {MODEL_SAVE_PATH}")
     model.save(MODEL_SAVE_PATH)
-    
+
     # Save vocabulary for inference
     vocab_path = MODEL_SAVE_PATH.replace(".keras", "_vocab.txt")
     with open(vocab_path, "w") as f:
         f.write("".join(unique_chars))
     print(f"Vocabulary saved to {vocab_path}")
+
+    # Final WER report
+    if JIWER_AVAILABLE:
+        refs_final, hyps_final = [], []
+        for _, row in val_df.iterrows():
+            wav_path = os.path.join(WAVS_PATH, str(row['filename']))
+            spec = process_audio(wav_path)
+            spec_t = tf.expand_dims(tf.constant(spec, dtype=tf.float32), 0)
+            logits = model(spec_t, training=False)[0].numpy()
+            decoded = _greedy_ctc_decode(logits, vocab_size)
+            chars = num_to_char(tf.constant(decoded, dtype=tf.int64)).numpy() if decoded else []
+            hyp = "".join(c.decode('utf-8') if isinstance(c, bytes) else c for c in chars)
+            refs_final.append(row['transcript'].lower())
+            hyps_final.append(hyp)
+        final_wer = jiwer.wer(refs_final, hyps_final)
+        print(f"\n=== Results ===")
+        if JIWER_AVAILABLE:
+            print(f"Baseline WER: {baseline_wer:.4f}")
+        print(f"Final WER:    {final_wer:.4f}")
 
 if __name__ == "__main__":
     main()

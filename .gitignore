@@ -61,3 +61,4 @@ backend/models/whisper-small-es-finetune-final/whisper-small-es-finetune-final/m
 
 # Dataset pesado de gestos
 backend/data/
+*.tmp.mp3
