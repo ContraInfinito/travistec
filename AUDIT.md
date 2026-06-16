@@ -38,6 +38,15 @@ the numbers to prove it.
   on LeapGestRecog, a defensible architecture choice (fewer parameters than ResNet50
   for comparable accuracy on a CPU-served app).
 
+## Known remaining debt
+
+- **Frontend lint.** The original React components carry pre-existing lint debt
+  (unused variables, an empty catch block, a `while (true)` loop). These are
+  demoted to ESLint *warnings* so CI stays green, and should be cleaned up
+  incrementally. The backend passes `flake8` with no warnings.
+- **Charts on retrain.** Feature-importance PNGs in `docs/charts/` are generated
+  by the trainers; only the models trained locally are committed so far.
+
 ## Verifying the fixes
 
 ```powershell
