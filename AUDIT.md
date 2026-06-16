@@ -38,6 +38,40 @@ the numbers to prove it.
   on LeapGestRecog, a defensible architecture choice (fewer parameters than ResNet50
   for comparable accuracy on a CPU-served app).
 
+## Stale-model finding (discovered during metric generation)
+
+| # | Issue | Severity | Resolution |
+|---|---|---|---|
+| 14 | **Models trained on stale/mismatched data.** The Bitcoin model was trained on a 2013-era CSV (BTC ~$100) and the S&P 500 model on a 2018 mean-of-stocks proxy (~$80–150) — yet the fixed inference path feeds *live* prices ($60k+ BTC, ~5,300 index). A RandomForest can't extrapolate, so live predictions were still meaningless even after the inference fix. | High | Retrained both on live yfinance data (`BTC-USD`, `^GSPC`) so the training range matches inference, with a time-based 90-day backtest. |
+
+## Measured results
+
+Generated locally (`python backend/scripts/train_*.py`). Models whose datasets are
+present locally; airline/London/Chicago datasets are gitignored or need BigQuery.
+
+| Model | Type | Headline metric | Model | Baseline |
+|---|---|---|---|---|
+| Bitcoin | Regression | 90-day backtest, 1-day-ahead | **MAPE 3.20%** (MAE $2,332) | — |
+| Bitcoin | Regression | 5-fold CV MAE (all horizons) | $16,200 | $32,266 |
+| S&P 500 | Regression | 90-day backtest, 1-day-ahead | **MAPE 4.43%** (MAE 325) | — |
+| S&P 500 | Regression | 5-fold CV MAE | 476 | 1,372 |
+| Avocado | Regression | 5-fold CV MAE | 0.143 | 0.219 |
+| Car price | Regression | 5-fold CV MAE | 0.840 | 3.686 |
+| BMI / body-fat | Regression | 5-fold CV MAE | 5.064 | 6.884 |
+| Cirrhosis | Classification | 5-fold CV accuracy | 0.522 | 0.376 |
+
+Every model beats its naive baseline. The Bitcoin/S&P backtests are honest
+out-of-sample estimates on a held-out 90-day window of live prices.
+
+**Pending (needs GPU/Colab or absent data):**
+- **Voice CTC WER** — dataset (1,596 clips) and the 80/20-split + `jiwer` WER
+  pipeline are ready, but training needs TensorFlow on a GPU. Run
+  `notebooks/train_audio_ctc_colab.ipynb`. (TensorFlow has no Python 3.13 build,
+  so it can't run in this local env.)
+- **Gesture confusion matrix** — needs the LeapGestRecog images (`backend/data/`,
+  gitignored).
+- **Airline / London / Chicago CV** — datasets absent locally / need BigQuery.
+
 ## Known remaining debt
 
 - **Frontend lint.** The original React components carry pre-existing lint debt
